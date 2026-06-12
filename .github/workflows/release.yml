@@ -37,6 +37,10 @@ jobs:
         shell: powershell
         run: .\build_release.ps1
 
+      - name: Verify release package
+        shell: powershell
+        run: .\verify_release.ps1 -Version (python -c "from settings import APP_VERSION; print(APP_VERSION)") -ReleaseRoot .\dist_public
+
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
         with:

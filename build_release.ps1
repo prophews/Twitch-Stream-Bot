@@ -70,6 +70,18 @@ function Resolve-BundledExecutable([string]$Name) {
     return $executable.FullName
 }
 
+function Assert-ExecutableRuns([string]$Path, [string]$Description) {
+    $process = Start-Process `
+        -FilePath $Path `
+        -ArgumentList "-version" `
+        -Wait `
+        -PassThru `
+        -WindowStyle Hidden
+    if ($process.ExitCode -ne 0) {
+        throw "$Description failed to execute with exit code $($process.ExitCode): $Path"
+    }
+}
+
 Write-Host "Installing build dependencies..."
 python -m pip install --break-system-packages -r (Join-Path $root "requirements.txt") pyinstaller
 if ($LASTEXITCODE -ne 0) {
@@ -102,6 +114,18 @@ Write-Host "Building $appName..."
     (Join-Path $root "run_gui.py")
 if ($LASTEXITCODE -ne 0) {
     throw "PyInstaller failed."
+}
+
+$bundledFfmpeg = Join-Path $stagedApp "_internal\ffmpeg.exe"
+$bundledFfprobe = Join-Path $stagedApp "_internal\ffprobe.exe"
+foreach ($binary in @($bundledFfmpeg, $bundledFfprobe)) {
+    if (-not (Test-Path -LiteralPath $binary)) {
+        throw "Required bundled media binary is missing: $binary"
+    }
+    if ((Get-Item -LiteralPath $binary).Length -lt 5MB) {
+        throw "Required bundled media binary is too small and may be a launcher shim: $binary"
+    }
+    Assert-ExecutableRuns $binary "Bundled media binary"
 }
 
 New-Item -ItemType Directory -Path $publicRoot -Force | Out-Null
@@ -161,6 +185,11 @@ if ($iscc) {
     }
 } else {
     Write-Warning "Inno Setup was not found. ZIP built, but installer was skipped."
+}
+
+& (Join-Path $root "verify_release.ps1") -Version $appVersion -ReleaseRoot $publicRoot
+if ($LASTEXITCODE -ne 0) {
+    throw "Release verification failed."
 }
 
 Remove-SafeDirectory $buildPath
