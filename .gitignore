@@ -1,0 +1,16 @@
+__pycache__/
+*.pyc
+
+build/
+build_fixed/
+build_public/
+build_v2/
+dist/
+dist_fixed/
+dist_public/
+dist_v2_build/
+
+temp_sr/
+data/
+config.json
+*.iss.bak

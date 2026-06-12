@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Twitch SR Player</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: transparent;
+            overflow: hidden;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            font-family: sans-serif;
+        }
+
+        #videoContainer {
+            position: absolute;
+            width: var(--pip-width, 480px);
+            height: var(--pip-height, 270px);
+            display: none;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0px 5px 20px rgba(0, 0, 0, 0.5);
+            transition: all 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+            background-color: rgba(0, 0, 0, 1);
+        }
+
+        /* Position variations for small window */
+        #videoContainer.bottom-left {
+            top: calc(100vh - var(--pip-height, 270px) - 20px);
+            left: 20px;
+        }
+
+        #videoContainer.bottom-right {
+            top: calc(100vh - var(--pip-height, 270px) - 20px);
+            left: calc(100vw - var(--pip-width, 480px) - 20px);
+        }
+
+        #videoContainer.top-left {
+            top: 20px;
+            left: 20px;
+        }
+
+        #videoContainer.top-right {
+            top: 20px;
+            left: calc(100vw - var(--pip-width, 480px) - 20px);
+        }
+
+
+
+        #videoContainer.fullscreen {
+            left: 0 !important;
+            top: 0 !important;
+            width: 100vw !important;
+            height: 100vh !important;
+            border-radius: 0;
+        }
+
+        video {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            z-index: 1;
+        }
+
+        video.audio-only {
+            opacity: 0;
+        }
+
+        #albumArt,
+        #audioFallback {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            display: none;
+            z-index: 2;
+        }
+
+        #albumArt {
+            object-fit: contain;
+            background: radial-gradient(circle at center, #222 0%, #050505 70%);
+        }
+
+        #audioFallback {
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 32px;
+            box-sizing: border-box;
+            color: white;
+            background:
+                radial-gradient(circle at 20% 20%, rgba(77, 184, 255, 0.28), transparent 35%),
+                linear-gradient(135deg, #101820 0%, #050505 100%);
+        }
+
+        #audioFallbackTitle {
+            font-size: clamp(24px, 5vw, 56px);
+            font-weight: 700;
+            line-height: 1.12;
+            text-shadow: 0 3px 18px rgba(0, 0, 0, 0.65);
+        }
+
+        #persistentProgress {
+            position: absolute;
+            inset: 0;
+            display: none;
+            pointer-events: none;
+            z-index: 4;
+        }
+
+        #persistentProgressTrack {
+            position: absolute;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            height: 3px;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.2);
+        }
+
+        #persistentProgressBar {
+            width: 0%;
+            height: 100%;
+            background: #4db8ff;
+            box-shadow: 0 0 5px rgba(77, 184, 255, 0.7);
+            transition: width 0.25s linear;
+        }
+
+        #persistentTitle,
+        #persistentProgressTime {
+            position: absolute;
+            bottom: 7px;
+            padding: 2px 5px;
+            color: rgba(255, 255, 255, 0.92);
+            background: rgba(0, 0, 0, 0.5);
+            border-radius: 3px;
+            font-weight: 500;
+            line-height: 1.2;
+            text-shadow: 0 1px 2px black;
+            backdrop-filter: blur(3px);
+        }
+
+        #persistentTitle {
+            left: 7px;
+            display: none;
+            max-width: calc(100% - 120px);
+            overflow: hidden;
+            white-space: nowrap;
+            text-overflow: ellipsis;
+            font-size: var(--title-font-size, 11px);
+        }
+
+        #persistentProgressTime {
+            right: 7px;
+            display: none;
+            font-size: var(--time-font-size, 11px);
+        }
+    </style>
+</head>
+
+<body>
+    <div id="videoContainer">
+        <video id="player"></video>
+        <img id="albumArt" alt="">
+        <div id="audioFallback">
+            <div id="audioFallbackTitle">Audio</div>
+        </div>
+        <div id="persistentProgress">
+            <div id="persistentTitle">Song Title</div>
+            <div id="persistentProgressTime">0:00 / 0:00</div>
+            <div id="persistentProgressTrack">
+                <div id="persistentProgressBar"></div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const videoContainer = document.getElementById('videoContainer');
+        const player = document.getElementById('player');
+        const albumArt = document.getElementById('albumArt');
+        const audioFallback = document.getElementById('audioFallback');
+        const audioFallbackTitle = document.getElementById('audioFallbackTitle');
+        const persistentProgress = document.getElementById('persistentProgress');
+        const persistentTitle = document.getElementById('persistentTitle');
+        const persistentProgressTrack = document.getElementById('persistentProgressTrack');
+        const persistentProgressBar = document.getElementById('persistentProgressBar');
+        const persistentProgressTime = document.getElementById('persistentProgressTime');
+
+        let ws;
+        let isPlayerActive = false; // Prevents "stop" or "reload" from triggering fake media_ended errors
+        let isWindowHidden = false;
+        let isProgressVisible = false;
+        let isTitleVisible = false;
+        let isTimeVisible = false;
+
+        function applyWindowVisibility() {
+            const playerVisible = isPlayerActive && !isWindowHidden;
+            videoContainer.style.display = playerVisible ? "block" : "none";
+            persistentProgress.style.display =
+                (playerVisible && (isProgressVisible || isTitleVisible || isTimeVisible)) ? "block" : "none";
+            persistentProgressTrack.style.display =
+                (playerVisible && isProgressVisible) ? "block" : "none";
+            persistentTitle.style.display =
+                (playerVisible && isTitleVisible) ? "block" : "none";
+            persistentProgressTime.style.display =
+                (playerVisible && isTimeVisible) ? "block" : "none";
+        }
+
+        function formatTime(seconds) {
+            seconds = Math.floor(seconds);
+            const m = Math.floor(seconds / 60);
+            const s = seconds % 60;
+            return m + ":" + (s < 10 ? "0" : "") + s;
+        }
+
+        function resetAudioVisuals() {
+            player.classList.remove('audio-only');
+            albumArt.style.display = 'none';
+            albumArt.removeAttribute('src');
+            audioFallback.style.display = 'none';
+            audioFallbackTitle.innerText = '';
+        }
+
+        function applyAudioVisuals(data) {
+            resetAudioVisuals();
+            if (data.media_kind !== "audio") return;
+
+            player.classList.add('audio-only');
+            audioFallbackTitle.innerText = data.title || 'Audio';
+
+            if (data.art_url) {
+                albumArt.onload = () => {
+                    albumArt.style.display = 'block';
+                    audioFallback.style.display = 'none';
+                };
+                albumArt.onerror = () => {
+                    albumArt.style.display = 'none';
+                    audioFallback.style.display = 'flex';
+                };
+                albumArt.src = `${data.art_url}?t=${Date.now()}`;
+            } else {
+                audioFallback.style.display = 'flex';
+            }
+        }
+
+        function connect() {
+            // Connect to our internal websocket
+            const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+            const wsUrl = `${wsProtocol}//${window.location.host}/ws`;
+            ws = new WebSocket(wsUrl);
+
+            ws.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+
+                if (data.action === "play") {
+                    const startTime = data.start_time || 0;
+                    const mediaUrl = data.media_url;
+
+                    persistentTitle.innerText = data.title || 'Unknown Title';
+                    isWindowHidden = false;
+                    applyAudioVisuals(data);
+
+                    // Attach handler BEFORE changing src so canplay is never missed
+                    player.oncanplay = null;
+                    player.onseeked = null;
+
+                    player.oncanplay = () => {
+                        player.oncanplay = null;
+                        if (startTime > 1) {
+                            // Wait for the seek to fully complete before playing
+                            // so we don't start at 0 while seeking is in flight
+                            player.onseeked = () => {
+                                player.onseeked = null;
+                                player.play().catch(e => console.error("Playback failed:", e));
+                            };
+                            player.currentTime = startTime;
+                        } else {
+                            player.play().catch(e => console.error("Playback failed:", e));
+                        }
+                    };
+
+                    isPlayerActive = true;
+                    applyWindowVisibility();
+                    player.pause();
+                    player.src = `${mediaUrl}?t=${Date.now()}`; // bust 304 cache
+                    player.volume = data.volume / 100.0;
+                    player.load();
+                }
+                else if (data.action === "stop") {
+                    isPlayerActive = false;
+                    isWindowHidden = false;
+                    applyWindowVisibility();
+                    player.pause();
+                    player.removeAttribute('src'); // Unload properly
+                    resetAudioVisuals();
+                }
+                else if (data.action === "reload") {
+                    // Server requested a fresh page load to pick up latest JS
+                    window.location.reload(true);
+                }
+                else if (data.action === "pause") {
+                    player.pause();
+                }
+                else if (data.action === "resume") {
+                    player.play().catch(e => console.error("Playback failed:", e));
+                }
+                else if (data.action === "seek") {
+                    player.currentTime = data.time;
+                }
+                else if (data.action === "toggle_window_hidden") {
+                    if (isPlayerActive) {
+                        isWindowHidden = !isWindowHidden;
+                        applyWindowVisibility();
+                    }
+                }
+                else if (data.action === "show_window") {
+                    isWindowHidden = false;
+                    applyWindowVisibility();
+                }
+                else if (data.action === "hide_window") {
+                    isWindowHidden = true;
+                    applyWindowVisibility();
+                }
+                else if (data.action === "set_volume") {
+                    player.volume = data.volume / 100.0;
+                }
+                else if (data.action === "set_position") {
+                    // Remove all existing positioning classes
+                    videoContainer.classList.remove('bottom-left', 'bottom-right', 'top-left', 'top-right');
+
+                    // Add the new one
+                    if (data.position === "Bottom Right") videoContainer.classList.add('bottom-right');
+                    else if (data.position === "Top Left") videoContainer.classList.add('top-left');
+                    else if (data.position === "Top Right") videoContainer.classList.add('top-right');
+                    else videoContainer.classList.add('bottom-left'); // default
+                }
+                else if (data.action === "set_bg_opacity") {
+                    let op = data.opacity / 100.0;
+                    if (isNaN(op)) op = 1;
+                    videoContainer.style.backgroundColor = `rgba(0, 0, 0, ${op})`;
+                }
+                else if (data.action === "set_window_size") {
+                    videoContainer.style.setProperty('--pip-width', `${data.width}px`);
+                    videoContainer.style.setProperty('--pip-height', `${data.height}px`);
+                }
+                else if (data.action === "set_hud_font_sizes") {
+                    const titleSize = Math.max(8, Math.min(48, Number(data.title_size) || 11));
+                    const timeSize = Math.max(8, Math.min(48, Number(data.time_size) || 11));
+                    videoContainer.style.setProperty('--title-font-size', `${titleSize}px`);
+                    videoContainer.style.setProperty('--time-font-size', `${timeSize}px`);
+                }
+                else if (data.action === "set_fullscreen") {
+                    if (data.fullscreen) {
+                        videoContainer.classList.add('fullscreen');
+                    } else {
+                        videoContainer.classList.remove('fullscreen');
+                    }
+                }
+                else if (data.action === "set_progress_visible") {
+                    isProgressVisible = Boolean(data.visible);
+                    applyWindowVisibility();
+                }
+                else if (data.action === "set_title_visible") {
+                    isTitleVisible = Boolean(data.visible);
+                    applyWindowVisibility();
+                }
+                else if (data.action === "set_time_visible") {
+                    isTimeVisible = Boolean(data.visible);
+                    applyWindowVisibility();
+                }
+            };
+
+            ws.onclose = () => {
+                console.log("Disconnected, retrying...");
+                setTimeout(connect, 2000);
+            };
+
+            player.onended = () => {
+                if (!isPlayerActive) return; // Ignore events caused by explicit unload/stop commands
+                isPlayerActive = false;
+                isWindowHidden = false;
+                applyWindowVisibility();
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ event: "media_ended" }));
+                }
+            };
+
+            player.onerror = () => {
+                if (!isPlayerActive) return; // Ignore errors caused by 'stop' or unloading
+                console.error("Video failed to play! Skipping...");
+                isPlayerActive = false;
+                isWindowHidden = false;
+                applyWindowVisibility();
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({ event: "media_ended" }));
+                }
+            };
+
+            // Sync current time back to backend and update the optional HUD.
+            player.ontimeupdate = () => {
+                const curr = player.currentTime || 0;
+                const dur = player.duration || 0;
+
+                if (dur > 0) {
+                    const percent = (curr / dur * 100) + "%";
+                    const formattedTime = formatTime(curr) + " / " + formatTime(dur);
+                    persistentProgressBar.style.width = percent;
+                    persistentProgressTime.innerText = formattedTime;
+                }
+
+                if (ws && ws.readyState === WebSocket.OPEN) {
+                    ws.send(JSON.stringify({
+                        event: "timeupdate",
+                        time: curr,
+                        duration: dur
+                    }));
+                }
+            };
+        }
+
+        connect();
+    </script>
+</body>
+
+</html>

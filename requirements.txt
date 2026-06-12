@@ -1,0 +1,8 @@
+twitchio==2.10.0
+aiohttp>=3.9,<4
+ttkbootstrap>=1.10,<2
+python-dotenv
+pydantic
+requests
+yt-dlp
+mutagen
