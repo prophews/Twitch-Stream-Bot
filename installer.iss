@@ -1,11 +1,11 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "2.3.0"
+  #define MyAppVersion "2.3.1"
 #endif
 
 #define MyAppName "Twitch Stream Bot"
 #define MyAppPublisher "prophews"
 #define MyAppURL "https://github.com/prophews/Twitch-Stream-Bot"
-#define MyAppExeName "Twitch Stream Bot 2.0.exe"
+#define MyAppExeName "Twitch Stream Bot.exe"
 
 [Setup]
 AppId={{7CA939E7-B87C-47D5-9038-09B4E50A3789}
@@ -37,8 +37,11 @@ Name: "english"; MessagesFile: "compiler:Default.isl"
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Shortcuts:"; Flags: unchecked
 
 [Files]
-Source: "dist_public\Twitch Stream Bot 2.0\Twitch Stream Bot 2.0.exe"; DestDir: "{app}"; Flags: ignoreversion
-Source: "dist_public\Twitch Stream Bot 2.0\_internal\*"; DestDir: "{app}\_internal"; Flags: ignoreversion recursesubdirs createallsubdirs
+Source: "dist_public\Twitch Stream Bot\Twitch Stream Bot.exe"; DestDir: "{app}"; Flags: ignoreversion
+Source: "dist_public\Twitch Stream Bot\_internal\*"; DestDir: "{app}\_internal"; Flags: ignoreversion recursesubdirs createallsubdirs
+
+[InstallDelete]
+Type: files; Name: "{app}\Twitch Stream Bot 2.0.exe"
 
 [Icons]
 Name: "{autoprograms}\Twitch Stream Bot"; Filename: "{app}\{#MyAppExeName}"

@@ -42,7 +42,7 @@ jobs:
         with:
           name: Twitch-Stream-Bot-Windows
           path: |
-            dist_public/Twitch Stream Bot 2.0/Twitch Stream Bot *.zip
+            dist_public/Twitch Stream Bot/Twitch Stream Bot *.zip
             dist_public/Twitch Stream Bot Setup *.exe
 
       - name: Publish GitHub release
@@ -51,5 +51,5 @@ jobs:
         with:
           generate_release_notes: true
           files: |
-            dist_public/Twitch Stream Bot 2.0/Twitch Stream Bot *.zip
+            dist_public/Twitch Stream Bot/Twitch Stream Bot *.zip
             dist_public/Twitch Stream Bot Setup *.exe
