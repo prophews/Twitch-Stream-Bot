@@ -69,4 +69,8 @@ and portable ZIP to a GitHub Release.
 
 ## License
 
-[MIT](LICENSE)
+Twitch Stream Bot is free to use for personal or commercial livestreaming,
+but modification and redistribution are not permitted. See the
+[proprietary license](LICENSE) for the complete terms. Earlier copies
+received under the MIT License retain the permissions granted with those
+copies.
