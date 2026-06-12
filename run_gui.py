@@ -277,7 +277,7 @@ class BotApp:
         ).pack(anchor="w", pady=(5, 0))
         
         np_lb = tb.Labelframe(left_frame, text="Now Playing", padding=10)
-        np_lb.pack(fill=BOTH, expand=True)
+        np_lb.pack(fill=X)
         
         self.np_title_var = tb.StringVar(value="Waiting...")
         self.np_req_var = tb.StringVar(value="")
@@ -385,7 +385,13 @@ class BotApp:
         hist_lb.pack(fill=BOTH, expand=True, pady=(10, 0))
         
         hist_columns = ("title", "req")
-        self.hist_tree = tb.Treeview(hist_lb, columns=hist_columns, show="headings", bootstyle=SECONDARY)
+        self.hist_tree = tb.Treeview(
+            hist_lb,
+            columns=hist_columns,
+            show="headings",
+            bootstyle=SECONDARY,
+            height=5,
+        )
         self.hist_tree.heading("title", text="Title")
         self.hist_tree.heading("req", text="Requested By")
         self.hist_tree.column("title", width=150, stretch=True)
@@ -524,7 +530,7 @@ class BotApp:
             )
         )
 
-        self.log_output = ScrolledText(log_lb, height=8, autohide=True)
+        self.log_output = ScrolledText(log_lb, height=3, autohide=True)
         self.log_output.pack(fill=BOTH, expand=True)
         self.log_output.text.configure(state="disabled", wrap="word")
         self.log_output = self.log_output.text
@@ -536,7 +542,7 @@ class BotApp:
             self.root.update_idletasks()
             total_height = self.dashboard_pane.winfo_height()
             if total_height > 350:
-                log_height = max(145, min(190, total_height // 4))
+                log_height = max(90, min(110, total_height // 8))
                 self.dashboard_pane.sashpos(0, total_height - log_height)
         except tk.TclError:
             pass
