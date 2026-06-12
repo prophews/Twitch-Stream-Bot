@@ -6,7 +6,7 @@ files, loyalty features, Streamer.bot, updates, and troubleshooting.
 ## 1. Install or Update
 
 1. Go to the [latest GitHub release](https://github.com/prophews/Twitch-Stream-Bot/releases/latest).
-2. Download **Twitch Stream Bot Setup.exe**.
+2. Download **Twitch.Stream.Bot.Setup.&lt;version&gt;.exe** (not the portable ZIP).
 3. Run the installer.
 4. Open **Twitch Stream Bot** from the Start menu.
 

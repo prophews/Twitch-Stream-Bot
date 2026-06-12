@@ -11,7 +11,7 @@ command-line setup.
 ## Install
 
 1. Open the [latest release](https://github.com/prophews/Twitch-Stream-Bot/releases/latest).
-2. Download **Twitch Stream Bot Setup.exe**.
+2. Download **Twitch.Stream.Bot.Setup.&lt;version&gt;.exe** (not the portable ZIP).
 3. Run the installer, then launch **Twitch Stream Bot** from the Start menu.
 4. Follow the in-app **Setup & Instructions** tab.
 
