@@ -40,14 +40,46 @@ function Move-DirectoryWithRetry([string]$Source, [string]$Destination) {
     }
 }
 
+function Resolve-BundledExecutable([string]$Name) {
+    $command = Get-Command "$Name.exe" -ErrorAction Stop
+    $candidates = @($command.Source)
+
+    # Chocolatey exposes small launcher shims on PATH. Search its package
+    # directory for the actual standalone binary that must ship with the app.
+    $chocolateyPackage = Join-Path $env:ProgramData "chocolatey\lib\ffmpeg"
+    if (Test-Path -LiteralPath $chocolateyPackage) {
+        $candidates += Get-ChildItem `
+            -LiteralPath $chocolateyPackage `
+            -Recurse `
+            -Filter "$Name.exe" `
+            -File `
+            -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty FullName
+    }
+
+    $executable = $candidates |
+        Where-Object { $_ -and (Test-Path -LiteralPath $_) } |
+        ForEach-Object { Get-Item -LiteralPath $_ } |
+        Where-Object { $_.Length -ge 5MB } |
+        Sort-Object Length -Descending |
+        Select-Object -First 1
+
+    if (-not $executable) {
+        throw "$Name.exe resolved only to a launcher shim or was not found. A standalone binary of at least 5 MB is required."
+    }
+    return $executable.FullName
+}
+
 Write-Host "Installing build dependencies..."
 python -m pip install --break-system-packages -r (Join-Path $root "requirements.txt") pyinstaller
 if ($LASTEXITCODE -ne 0) {
     throw "Dependency installation failed."
 }
 
-$ffmpeg = (Get-Command ffmpeg.exe -ErrorAction Stop).Source
-$ffprobe = (Get-Command ffprobe.exe -ErrorAction Stop).Source
+$ffmpeg = Resolve-BundledExecutable "ffmpeg"
+$ffprobe = Resolve-BundledExecutable "ffprobe"
+Write-Host "Bundling FFmpeg: $ffmpeg"
+Write-Host "Bundling FFprobe: $ffprobe"
 
 Remove-SafeDirectory $buildPath
 Remove-SafeDirectory $stagingRoot
