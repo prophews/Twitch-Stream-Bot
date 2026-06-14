@@ -64,7 +64,7 @@ begin
   begin
     Result :=
       'The app-only update requires an existing full Twitch Stream Bot installation.' +
-      #13#10#13#10 +
+      Chr(13) + Chr(10) + Chr(13) + Chr(10) +
       'Install the full Twitch Stream Bot Setup package first.';
     exit;
   end;
