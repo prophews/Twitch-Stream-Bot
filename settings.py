@@ -8,7 +8,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError, Field
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-APP_VERSION = "2.3.3"
+APP_VERSION = "2.3.4"
 
 DEFAULT_BUILTIN_RESPONSES = {
     "balance": "@{user}, {target} has {balance} {balance_currency}.",
