@@ -1,0 +1,7 @@
+{
+  "version": "8.1.1",
+  "variant": "essentials_build",
+  "archive": "ffmpeg-8.1.1-essentials_build.zip",
+  "url": "https://www.gyan.dev/ffmpeg/builds/packages/ffmpeg-8.1.1-essentials_build.zip",
+  "sha256": "6f58ce889f59c311410f7d2b18895b33c03456463486f3b1ebc93d97a0f54541"
+}

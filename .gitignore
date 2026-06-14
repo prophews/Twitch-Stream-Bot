@@ -9,6 +9,7 @@ dist/
 dist_fixed/
 dist_public/
 dist_v2_build/
+.build_dependencies/
 
 temp_sr/
 data/

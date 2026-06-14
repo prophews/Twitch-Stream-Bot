@@ -40,36 +40,6 @@ function Move-DirectoryWithRetry([string]$Source, [string]$Destination) {
     }
 }
 
-function Resolve-BundledExecutable([string]$Name) {
-    $command = Get-Command "$Name.exe" -ErrorAction Stop
-    $candidates = @($command.Source)
-
-    # Chocolatey exposes small launcher shims on PATH. Search its package
-    # directory for the actual standalone binary that must ship with the app.
-    $chocolateyPackage = Join-Path $env:ProgramData "chocolatey\lib\ffmpeg"
-    if (Test-Path -LiteralPath $chocolateyPackage) {
-        $candidates += Get-ChildItem `
-            -LiteralPath $chocolateyPackage `
-            -Recurse `
-            -Filter "$Name.exe" `
-            -File `
-            -ErrorAction SilentlyContinue |
-            Select-Object -ExpandProperty FullName
-    }
-
-    $executable = $candidates |
-        Where-Object { $_ -and (Test-Path -LiteralPath $_) } |
-        ForEach-Object { Get-Item -LiteralPath $_ } |
-        Where-Object { $_.Length -ge 5MB } |
-        Sort-Object Length -Descending |
-        Select-Object -First 1
-
-    if (-not $executable) {
-        throw "$Name.exe resolved only to a launcher shim or was not found. A standalone binary of at least 5 MB is required."
-    }
-    return $executable.FullName
-}
-
 function Assert-ExecutableRuns([string]$Path, [string]$Description) {
     $process = Start-Process `
         -FilePath $Path `
@@ -88,8 +58,9 @@ if ($LASTEXITCODE -ne 0) {
     throw "Dependency installation failed."
 }
 
-$ffmpeg = Resolve-BundledExecutable "ffmpeg"
-$ffprobe = Resolve-BundledExecutable "ffprobe"
+$ffmpegDependency = & (Join-Path $root "prepare_ffmpeg.ps1")
+$ffmpeg = $ffmpegDependency.FFmpeg
+$ffprobe = $ffmpegDependency.FFprobe
 Write-Host "Bundling FFmpeg: $ffmpeg"
 Write-Host "Bundling FFprobe: $ffprobe"
 

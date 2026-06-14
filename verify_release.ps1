@@ -17,6 +17,10 @@ $minimumMediaBinarySize = 5MB
 $minimumZipSize = 50MB
 $minimumInstallerSize = 50MB
 $minimumAppUpdateSize = 5MB
+$ffmpegManifest = Get-Content `
+    -LiteralPath (Join-Path $PSScriptRoot "ffmpeg-dependency.json") `
+    -Raw |
+    ConvertFrom-Json
 
 function Assert-FileSize([string]$Path, [long]$MinimumBytes, [string]$Description) {
     if (-not (Test-Path -LiteralPath $Path)) {
@@ -40,9 +44,31 @@ function Assert-ExecutableRuns([string]$Path, [string]$Description) {
     }
 }
 
+function Assert-MediaBinaryIdentity(
+    [string]$Path,
+    [string]$ToolName,
+    [string]$Description
+) {
+    $output = (& $Path -hide_banner -version 2>&1 | Out-String)
+    if ($LASTEXITCODE -ne 0) {
+        throw "$Description failed to execute: $Path"
+    }
+    $requiredIdentity = (
+        "$ToolName version $($ffmpegManifest.version)-$($ffmpegManifest.variant)"
+    )
+    if ($output -notmatch [regex]::Escape($requiredIdentity)) {
+        throw "$Description does not match pinned FFmpeg dependency '$requiredIdentity': $Path"
+    }
+}
+
 Assert-FileSize $zipPath $minimumZipSize "Portable ZIP"
 Assert-FileSize $installerPath $minimumInstallerSize "Windows installer"
 Assert-FileSize $appUpdatePath $minimumAppUpdateSize "App-only update"
+
+$publicFfmpeg = Join-Path $appDirectory "_internal\ffmpeg.exe"
+$publicFfprobe = Join-Path $appDirectory "_internal\ffprobe.exe"
+Assert-MediaBinaryIdentity $publicFfmpeg "ffmpeg" "Packaged FFmpeg"
+Assert-MediaBinaryIdentity $publicFfprobe "ffprobe" "Packaged FFprobe"
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [IO.Compression.ZipFile]::OpenRead($zipPath)
@@ -127,6 +153,8 @@ try {
         Assert-FileSize $binary $minimumMediaBinarySize "Installed media binary"
         Assert-ExecutableRuns $binary "Installed media binary"
     }
+    Assert-MediaBinaryIdentity $installedFfmpeg "ffmpeg" "Installed FFmpeg"
+    Assert-MediaBinaryIdentity $installedFfprobe "ffprobe" "Installed FFprobe"
 
     if (-not (Test-Path -LiteralPath $installedApp)) {
         throw "Installed application executable is missing."

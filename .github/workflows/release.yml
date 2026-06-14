@@ -24,8 +24,14 @@ jobs:
       - name: Install build tools
         shell: powershell
         run: |
-          choco install ffmpeg innosetup -y --no-progress
+          choco install innosetup -y --no-progress
           python -m pip install --upgrade pip
+
+      - name: Cache pinned FFmpeg
+        uses: actions/cache@v4
+        with:
+          path: .build_dependencies
+          key: ffmpeg-${{ runner.os }}-${{ hashFiles('ffmpeg-dependency.json') }}
 
       - name: Run tests
         shell: powershell
