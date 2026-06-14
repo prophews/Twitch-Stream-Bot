@@ -101,6 +101,7 @@ class BotApp:
         self.bot_instance = None
         self.bot_thread = None
         self.settings = load_settings()
+        self.vol_var = tk.IntVar(value=self.settings.vlc_sr_volume)
         self._autosave_after_id = None
         self._autosave_suspended = True
         self._last_q_id = None
@@ -376,6 +377,31 @@ class BotApp:
         self.time_lbl = tb.Label(np_lb, text="0:00 / 0:00", font=("Helvetica", 9), foreground="gray")
         self.time_lbl.pack(anchor="e", padx=4, pady=(0, 3))
 
+        volume_row = tb.Frame(np_lb)
+        volume_row.pack(fill=X, padx=4, pady=(2, 3))
+        self.dashboard_volume_label_var = tk.StringVar(
+            value=f"Volume: {self.vol_var.get()}%"
+        )
+        tb.Label(
+            volume_row,
+            textvariable=self.dashboard_volume_label_var,
+            width=12,
+            anchor="w",
+        ).pack(side=LEFT)
+        tb.Scale(
+            volume_row,
+            from_=0,
+            to=100,
+            orient=tk.HORIZONTAL,
+            variable=self.vol_var,
+        ).pack(side=LEFT, fill=X, expand=True, padx=(8, 0))
+        self.vol_var.trace_add(
+            "write",
+            lambda *_: self.dashboard_volume_label_var.set(
+                f"Volume: {self.vol_var.get()}%"
+            ),
+        )
+
         self.is_dragging_slider = False
         self.seek_slider.bind("<ButtonPress-1>", lambda e: setattr(self, 'is_dragging_slider', True))
         self.seek_slider.bind("<ButtonRelease-1>", self._gui_seek_release)
@@ -604,7 +630,6 @@ class BotApp:
         ToolTip(audio_lf, "Configures how the Song Request browser source looks and sounds in OBS.")
         
         tb.Label(audio_lf, text="Master Volume (%):", font=("Helvetica", 11)).grid(row=0, column=0, sticky="w", pady=5)
-        self.vol_var = tk.IntVar(value=self.settings.vlc_sr_volume)
         self._watch_setting_var(self.vol_var)
         scale = tb.Scale(audio_lf, from_=0, to=100, orient=tk.HORIZONTAL, variable=self.vol_var, length=300)
         scale.grid(row=0, column=1, columnspan=3, sticky="w", padx=20, pady=5)
