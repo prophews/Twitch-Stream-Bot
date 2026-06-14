@@ -1,6 +1,9 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
+import re
+import sys
 from typing import Any
 
 import requests
@@ -20,6 +23,24 @@ class ReleaseInfo:
     version: str
     page_url: str
     installer_url: str = ""
+    app_update_url: str = ""
+
+    @property
+    def preferred_update_url(self) -> str:
+        return self.app_update_url or self.installer_url or self.page_url
+
+    def update_url(self, installed_copy: bool) -> str:
+        if installed_copy:
+            return self.preferred_update_url
+        return self.page_url
+
+
+def is_installed_copy(executable_path: str | Path | None = None) -> bool:
+    executable = Path(executable_path or sys.executable).resolve()
+    for uninstaller in executable.parent.glob("unins*.exe"):
+        if uninstaller.with_suffix(".dat").is_file():
+            return True
+    return False
 
 
 def version_tuple(value: str) -> tuple[int, ...]:
@@ -56,14 +77,19 @@ def fetch_latest_release(timeout: int = 8) -> ReleaseInfo:
         raise ValueError("GitHub's latest release did not include a version tag.")
 
     installer_url = ""
+    app_update_url = ""
     for asset in payload.get("assets", []):
         name = str(asset.get("name", "")).lower()
-        if name.endswith(".exe") and "setup" in name:
-            installer_url = str(asset.get("browser_download_url", "")).strip()
-            break
+        searchable_name = re.sub(r"[^a-z0-9]+", " ", name).strip()
+        download_url = str(asset.get("browser_download_url", "")).strip()
+        if name.endswith(".exe") and "app update" in searchable_name:
+            app_update_url = download_url
+        elif name.endswith(".exe") and "setup" in searchable_name:
+            installer_url = download_url
 
     return ReleaseInfo(
         version=version.lstrip("v"),
         page_url=str(payload.get("html_url", "")).strip() or LATEST_RELEASE_PAGE,
         installer_url=installer_url,
+        app_update_url=app_update_url,
     )

@@ -24,7 +24,7 @@ from settings import (
     apply_profile_settings,
 )
 from bot import Bot
-from release_updates import fetch_latest_release, is_newer_version
+from release_updates import fetch_latest_release, is_installed_copy, is_newer_version
 
 
 def get_app_root() -> Path:
@@ -3122,15 +3122,29 @@ class BotApp:
                     self.update_status_var.set(f"Version {APP_VERSION} is current.")
                     return
                 self.update_status_var.set(f"Version {release.version} is available.")
+                installed_copy = is_installed_copy()
+                has_app_update = installed_copy and bool(release.app_update_url)
+                if has_app_update:
+                    package_description = "the smaller app-only update"
+                elif installed_copy and release.installer_url:
+                    package_description = "the full installer"
+                else:
+                    package_description = "the official release page"
+                preservation_note = (
+                    "\n\nThe app-only update keeps the FFmpeg files already "
+                    "installed on this computer."
+                    if has_app_update
+                    else ""
+                )
                 if messagebox.askyesno(
                     "Update Available",
                     (
                         f"Twitch Stream Bot {release.version} is available.\n\n"
-                        "Open the official GitHub release page to download and run "
-                        "the latest installer?"
+                        f"Open {package_description}?"
+                        f"{preservation_note}"
                     ),
                 ):
-                    webbrowser.open(release.page_url)
+                    webbrowser.open(release.update_url(installed_copy))
 
             self.root.after(0, show_result)
 

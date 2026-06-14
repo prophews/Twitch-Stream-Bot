@@ -178,13 +178,19 @@ $isccCandidates = @(
 )
 $iscc = $isccCandidates | Where-Object { $_ -and (Test-Path -LiteralPath $_) } | Select-Object -First 1
 if ($iscc) {
-    Write-Host "Building Windows installer..."
+    Write-Host "Building full Windows installer..."
     & $iscc "/DMyAppVersion=$appVersion" (Join-Path $root "installer.iss")
     if ($LASTEXITCODE -ne 0) {
-        throw "Inno Setup failed."
+        throw "Full installer build failed."
+    }
+
+    Write-Host "Building app-only Windows update..."
+    & $iscc "/DMyAppVersion=$appVersion" (Join-Path $root "app_update.iss")
+    if ($LASTEXITCODE -ne 0) {
+        throw "App-only update build failed."
     }
 } else {
-    Write-Warning "Inno Setup was not found. ZIP built, but installer was skipped."
+    Write-Warning "Inno Setup was not found. ZIP built, but installers were skipped."
 }
 
 & (Join-Path $root "verify_release.ps1") -Version $appVersion -ReleaseRoot $publicRoot

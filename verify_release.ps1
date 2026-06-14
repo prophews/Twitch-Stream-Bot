@@ -12,9 +12,11 @@ $releaseRootPath = (Resolve-Path -LiteralPath $ReleaseRoot).Path
 $appDirectory = Join-Path $releaseRootPath "Twitch Stream Bot"
 $zipPath = Join-Path $appDirectory "Twitch Stream Bot $Version.zip"
 $installerPath = Join-Path $releaseRootPath "Twitch Stream Bot Setup $Version.exe"
+$appUpdatePath = Join-Path $releaseRootPath "Twitch Stream Bot App Update $Version.exe"
 $minimumMediaBinarySize = 5MB
 $minimumZipSize = 50MB
 $minimumInstallerSize = 50MB
+$minimumAppUpdateSize = 5MB
 
 function Assert-FileSize([string]$Path, [long]$MinimumBytes, [string]$Description) {
     if (-not (Test-Path -LiteralPath $Path)) {
@@ -40,6 +42,7 @@ function Assert-ExecutableRuns([string]$Path, [string]$Description) {
 
 Assert-FileSize $zipPath $minimumZipSize "Portable ZIP"
 Assert-FileSize $installerPath $minimumInstallerSize "Windows installer"
+Assert-FileSize $appUpdatePath $minimumAppUpdateSize "App-only update"
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $archive = [IO.Compression.ZipFile]::OpenRead($zipPath)
@@ -81,12 +84,27 @@ try {
 
 $testRoot = Join-Path $env:TEMP "Twitch-Stream-Bot-release-verification-$PID"
 $installDirectory = Join-Path $testRoot "Program"
+$cleanUpdateDirectory = Join-Path $testRoot "CleanUpdate"
 $testLocalAppData = Join-Path $testRoot "LocalAppData"
 $originalLocalAppData = $env:LOCALAPPDATA
 
 try {
-    New-Item -ItemType Directory -Path $installDirectory, $testLocalAppData -Force | Out-Null
+    New-Item -ItemType Directory -Path $installDirectory, $cleanUpdateDirectory, $testLocalAppData -Force | Out-Null
     $env:LOCALAPPDATA = $testLocalAppData
+
+    $rejectedUpdate = Start-Process `
+        -FilePath $appUpdatePath `
+        -ArgumentList @(
+            "/VERYSILENT",
+            "/SUPPRESSMSGBOXES",
+            "/NORESTART",
+            "/DIR=`"$cleanUpdateDirectory`""
+        ) `
+        -Wait `
+        -PassThru
+    if ($rejectedUpdate.ExitCode -eq 0) {
+        throw "App-only update unexpectedly succeeded without an existing full installation."
+    }
 
     $installer = Start-Process `
         -FilePath $installerPath `
@@ -113,6 +131,32 @@ try {
     if (-not (Test-Path -LiteralPath $installedApp)) {
         throw "Installed application executable is missing."
     }
+
+    $ffmpegHashBefore = (Get-FileHash -LiteralPath $installedFfmpeg -Algorithm SHA256).Hash
+    $ffprobeHashBefore = (Get-FileHash -LiteralPath $installedFfprobe -Algorithm SHA256).Hash
+    $appUpdate = Start-Process `
+        -FilePath $appUpdatePath `
+        -ArgumentList @(
+            "/VERYSILENT",
+            "/SUPPRESSMSGBOXES",
+            "/NORESTART",
+            "/DIR=`"$installDirectory`""
+        ) `
+        -Wait `
+        -PassThru
+    if ($appUpdate.ExitCode -ne 0) {
+        throw "Silent app-only update returned exit code $($appUpdate.ExitCode)."
+    }
+
+    $ffmpegHashAfter = (Get-FileHash -LiteralPath $installedFfmpeg -Algorithm SHA256).Hash
+    $ffprobeHashAfter = (Get-FileHash -LiteralPath $installedFfprobe -Algorithm SHA256).Hash
+    if ($ffmpegHashBefore -ne $ffmpegHashAfter) {
+        throw "App-only update modified the installed FFmpeg binary."
+    }
+    if ($ffprobeHashBefore -ne $ffprobeHashAfter) {
+        throw "App-only update modified the installed FFprobe binary."
+    }
+
     $appProcess = Start-Process -FilePath $installedApp -PassThru
     Start-Sleep -Seconds 6
     $appProcess.Refresh()
