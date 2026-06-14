@@ -60,4 +60,3 @@ download_url = release.app_update_url or release.installer_url
 - Older releases without an app-only package still open the full installer.
 - App-only installation requires an existing valid installation.
 - Full installation remains usable on a clean Windows PC.
-
