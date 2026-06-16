@@ -19,7 +19,9 @@ from settings import (
     save_settings,
     BotSettings,
     DEFAULT_BUILTIN_RESPONSES,
+    get_config_path,
     get_runtime_data_dir,
+    get_runtime_root,
     profile_settings_payload,
     apply_profile_settings,
 )
@@ -137,6 +139,12 @@ class BotApp:
         file_handler = logging.FileHandler(log_dir / "bot.log", encoding="utf-8")
         file_handler.setFormatter(formatter)
         root_logger.addHandler(file_handler)
+
+        logging.getLogger("StandaloneBot").info(
+            "Runtime settings: root=%s config=%s",
+            get_runtime_root(),
+            get_config_path(),
+        )
 
         if hasattr(self, "log_output"):
             gui_handler = TkTextHandler(self.log_output)
