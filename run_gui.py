@@ -706,6 +706,22 @@ class BotApp:
         tb.Label(alias_lf, text="\u26a0 Command alias changes take effect after restarting the bot.",
                  foreground="#ffcc00").grid(row=num_rows*2, column=0, columnspan=3, sticky="w", padx=10, pady=(6,0))
 
+    def _pack_tree_with_scrollbar(self, tree, parent, fill=X, expand=False):
+        table_frame = tb.Frame(parent)
+        table_frame.pack(fill=fill, expand=expand)
+        scrollbar = tb.Scrollbar(table_frame, orient=VERTICAL, command=tree.yview)
+        tree.configure(yscrollcommand=scrollbar.set)
+        tree.pack(side=LEFT, fill=fill, expand=expand)
+        scrollbar.pack(side=RIGHT, fill=Y)
+
+        def _on_mousewheel(event):
+            tree.yview_scroll(int(-1 * (event.delta / 120)), "units")
+            return "break"
+
+        tree.bind("<Enter>", lambda _event: tree.bind_all("<MouseWheel>", _on_mousewheel))
+        tree.bind("<Leave>", lambda _event: tree.unbind_all("<MouseWheel>"))
+        return table_frame
+
     def _build_automation(self):
         save_bar = tb.Frame(self.automation_frame, padding=(10, 10, 10, 0))
         save_bar.pack(fill=X)
@@ -847,6 +863,11 @@ class BotApp:
                 "cmd_duel_decline_var",
                 self.settings.cmd_duel_decline,
             ),
+            (
+                "Raffle entry",
+                "cmd_raffle_enter_var",
+                self.settings.cmd_raffle_enter,
+            ),
         ]
         for index, (label, attribute, value) in enumerate(builtin_specs):
             variable = tk.StringVar(value=value)
@@ -890,6 +911,13 @@ class BotApp:
             ("Duel result", "duel_result"),
             ("Duel declined", "duel_decline"),
             ("Moderator adjustment", "points_adjusted"),
+            ("Raffle started", "raffle_started"),
+            ("Raffle countdown", "raffle_countdown"),
+            ("Raffle entry", "raffle_entry"),
+            ("Raffle winner", "raffle_winner"),
+            ("Raffle winner without reward", "raffle_winner_no_reward"),
+            ("Raffle no entries", "raffle_no_entries"),
+            ("Raffle cancelled", "raffle_cancelled"),
         ]
         configured_responses = self.settings.builtin_responses
         for row, (label, response_name) in enumerate(response_specs):
@@ -922,12 +950,13 @@ class BotApp:
             pady=(7, 0),
         )
 
-        games = tb.Labelframe(container, text="Gambling & Duels", padding=12)
+        games = tb.Labelframe(container, text="Gambling, Duels & Raffles", padding=12)
         games.pack(fill=X, pady=5)
         self.gambling_enabled_var = tk.BooleanVar(
             value=self.settings.gambling_enabled
         )
         self.duels_enabled_var = tk.BooleanVar(value=self.settings.duels_enabled)
+        self.raffle_enabled_var = tk.BooleanVar(value=self.settings.raffle_enabled)
         tb.Checkbutton(
             games,
             text="Enable gambling",
@@ -940,6 +969,12 @@ class BotApp:
             variable=self.duels_enabled_var,
             bootstyle="round-toggle",
         ).grid(row=0, column=2, columnspan=2, sticky="w", pady=(0, 8))
+        tb.Checkbutton(
+            games,
+            text="Enable raffles",
+            variable=self.raffle_enabled_var,
+            bootstyle="round-toggle",
+        ).grid(row=0, column=4, columnspan=2, sticky="w", pady=(0, 8))
         game_specs = [
             ("Gamble minimum", "gamble_minimum_var", self.settings.gamble_minimum),
             ("Gamble maximum", "gamble_maximum_var", self.settings.gamble_maximum),
@@ -970,6 +1005,21 @@ class BotApp:
                 "duel_cooldown_var",
                 self.settings.duel_cooldown_seconds,
             ),
+            (
+                "Raffle duration (seconds)",
+                "raffle_duration_var",
+                self.settings.raffle_duration_seconds,
+            ),
+            (
+                "Raffle reminder interval (seconds)",
+                "raffle_countdown_interval_var",
+                self.settings.raffle_countdown_interval_seconds,
+            ),
+            (
+                "Raffle winner reward",
+                "raffle_reward_var",
+                self.settings.raffle_reward_points,
+            ),
         ]
         for index, (label, attribute, value) in enumerate(game_specs):
             variable = tk.StringVar(value=str(value))
@@ -986,10 +1036,53 @@ class BotApp:
             games,
             text=(
                 "Gamble accepts a number or 'all'. Duels transfer the wager from the "
-                "loser to the winner; points are never created by a duel."
+                "loser to the winner. Raffles are streamer-started from this dashboard; "
+                "viewers enter with the configured raffle command."
             ),
             foreground="#aeb4ba",
-        ).grid(row=6, column=0, columnspan=4, sticky="w", pady=(7, 0))
+            wraplength=930,
+        ).grid(row=7, column=0, columnspan=6, sticky="w", pady=(7, 0))
+
+        raffle_controls = tb.Labelframe(container, text="Raffle Control", padding=12)
+        raffle_controls.pack(fill=X, pady=5)
+        raffle_top = tb.Frame(raffle_controls)
+        raffle_top.pack(fill=X)
+        self.raffle_title_var = tk.StringVar(value=self.settings.raffle_default_title)
+        tb.Label(raffle_top, text="Title").pack(side=LEFT)
+        tb.Entry(raffle_top, textvariable=self.raffle_title_var, width=34).pack(
+            side=LEFT, padx=(6, 14)
+        )
+        tb.Label(raffle_top, text="Entry command").pack(side=LEFT)
+        tb.Entry(raffle_top, textvariable=self.cmd_raffle_enter_var, width=16).pack(
+            side=LEFT, padx=(6, 14)
+        )
+        tb.Button(
+            raffle_top,
+            text="Start Raffle",
+            command=self._start_dashboard_raffle,
+            bootstyle="success",
+        ).pack(side=LEFT)
+        tb.Button(
+            raffle_top,
+            text="Draw Winner",
+            command=self._draw_dashboard_raffle,
+            bootstyle="warning",
+        ).pack(side=LEFT, padx=6)
+        tb.Button(
+            raffle_top,
+            text="Cancel",
+            command=self._cancel_dashboard_raffle,
+            bootstyle="outline-danger",
+        ).pack(side=LEFT)
+        self.raffle_status_var = tk.StringVar(
+            value="Start the bot first, then start a raffle when chat is connected."
+        )
+        tb.Label(
+            raffle_controls,
+            textvariable=self.raffle_status_var,
+            foreground="#aeb4ba",
+            wraplength=930,
+        ).pack(anchor="w", pady=(8, 0))
 
         streamerbot = tb.Labelframe(container, text="Streamer.bot Connection", padding=12)
         streamerbot.pack(fill=X, pady=5)
@@ -1053,7 +1146,7 @@ class BotApp:
         ):
             self.custom_command_tree.heading(column, text=label)
             self.custom_command_tree.column(column, width=width, anchor="w")
-        self.custom_command_tree.pack(fill=X)
+        self._pack_tree_with_scrollbar(self.custom_command_tree, commands, fill=X)
         self.custom_command_tree.bind(
             "<<TreeviewSelect>>", self._load_selected_custom_command
         )
@@ -1069,6 +1162,7 @@ class BotApp:
         self.custom_user_cooldown_var = tk.StringVar(value="0")
         self.custom_action_var = tk.StringVar()
         self.custom_action_id_var = tk.StringVar()
+        self.custom_description_var = tk.StringVar()
         self.custom_response_var = tk.StringVar()
         editor_specs = [
             ("Command", self.custom_name_var),
@@ -1121,14 +1215,21 @@ class BotApp:
         tb.Entry(editor, textvariable=self.custom_response_var).grid(
             row=4, column=1, columnspan=3, sticky="ew", padx=(0, 20), pady=4
         )
+        tb.Label(editor, text="Public list description").grid(
+            row=5, column=0, sticky="w", pady=4
+        )
+        tb.Entry(editor, textvariable=self.custom_description_var).grid(
+            row=5, column=1, columnspan=3, sticky="ew", padx=(0, 20), pady=4
+        )
         tb.Label(
             editor,
             text=(
                 "Placeholders: {user}, {command}, {args}, {balance}, {cost}, "
-                "{currency}, {currency_singular}. Blank response means silent."
+                "{currency}, {currency_singular}. Blank response means silent. "
+                "The public description is safe to show on the command list page."
             ),
             foreground="#aeb4ba",
-        ).grid(row=5, column=0, columnspan=4, sticky="w", pady=(4, 8))
+        ).grid(row=6, column=0, columnspan=4, sticky="w", pady=(4, 8))
 
         button_row = tb.Frame(commands)
         button_row.pack(fill=X)
@@ -1182,7 +1283,7 @@ class BotApp:
         ):
             self.timer_tree.heading(column, text=label)
             self.timer_tree.column(column, width=width, anchor="w")
-        self.timer_tree.pack(fill=X)
+        self._pack_tree_with_scrollbar(self.timer_tree, timers, fill=X)
         self.timer_tree.bind("<<TreeviewSelect>>", self._load_selected_timer)
 
         timer_editor = tb.Frame(timers)
@@ -1279,7 +1380,7 @@ class BotApp:
         ):
             self.balance_tree.heading(column, text=label)
             self.balance_tree.column(column, width=width, anchor="w")
-        self.balance_tree.pack(fill=X)
+        self._pack_tree_with_scrollbar(self.balance_tree, balances, fill=X)
 
         balance_controls = tb.Frame(balances)
         balance_controls.pack(fill=X, pady=(8, 0))
@@ -1366,6 +1467,7 @@ class BotApp:
         self.custom_user_cooldown_var.set(str(rule.get("user_cooldown_seconds", 0)))
         self.custom_action_var.set(rule.get("streamerbot_action", ""))
         self.custom_action_id_var.set(rule.get("streamerbot_action_id", ""))
+        self.custom_description_var.set(rule.get("description", ""))
         self.custom_response_var.set(rule.get("response", ""))
 
     def _clear_custom_command_editor(self):
@@ -1380,6 +1482,7 @@ class BotApp:
         self.custom_user_cooldown_var.set("0")
         self.custom_action_var.set("")
         self.custom_action_id_var.set("")
+        self.custom_description_var.set("")
         self.custom_response_var.set("")
 
     def _save_custom_command_rule(self):
@@ -1406,6 +1509,7 @@ class BotApp:
             self.cmd_duel_var.get().strip().lstrip("!").lower(),
             self.cmd_duel_accept_var.get().strip().lstrip("!").lower(),
             self.cmd_duel_decline_var.get().strip().lstrip("!").lower(),
+            self.cmd_raffle_enter_var.get().strip().lstrip("!").lower(),
             self.settings.cmd_sr.lower(),
             self.settings.cmd_skip.lower(),
             self.settings.cmd_pause.lower(),
@@ -1455,6 +1559,7 @@ class BotApp:
                     self.custom_action_var.get(),
                     self.custom_action_id_var.get(),
                 ),
+                "description": self.custom_description_var.get().strip()[:200],
                 "response": self.custom_response_var.get().strip(),
             }
         except ValueError:
@@ -1716,6 +1821,15 @@ class BotApp:
             self.settings.duel_cooldown_seconds = max(
                 0, int(self.duel_cooldown_var.get())
             )
+            self.settings.raffle_duration_seconds = max(
+                10, int(self.raffle_duration_var.get())
+            )
+            self.settings.raffle_countdown_interval_seconds = max(
+                0, int(self.raffle_countdown_interval_var.get())
+            )
+            self.settings.raffle_reward_points = max(
+                0, int(self.raffle_reward_var.get())
+            )
         except (tk.TclError, ValueError):
             self.automation_status_var.set(
                 "Waiting for valid numeric loyalty and game settings."
@@ -1726,6 +1840,10 @@ class BotApp:
         self.settings.automation_enabled = bool(self.automation_enabled_var.get())
         self.settings.gambling_enabled = bool(self.gambling_enabled_var.get())
         self.settings.duels_enabled = bool(self.duels_enabled_var.get())
+        self.settings.raffle_enabled = bool(self.raffle_enabled_var.get())
+        self.settings.raffle_default_title = (
+            self.raffle_title_var.get().strip() or "Raffle"
+        )
         self.settings.currency_name = self.currency_name_var.get().strip() or "points"
         self.settings.currency_singular = (
             self.currency_singular_var.get().strip() or "point"
@@ -1746,6 +1864,7 @@ class BotApp:
             ("cmd_duel", self.cmd_duel_var),
             ("cmd_duel_accept", self.cmd_duel_accept_var),
             ("cmd_duel_decline", self.cmd_duel_decline_var),
+            ("cmd_raffle_enter", self.cmd_raffle_enter_var),
         ):
             value = variable.get().strip().lstrip("!").lower()
             if not value or " " in value:
@@ -1764,6 +1883,7 @@ class BotApp:
             self.settings.cmd_duel,
             self.settings.cmd_duel_accept,
             self.settings.cmd_duel_decline,
+            self.settings.cmd_raffle_enter,
         ]
         if len(set(built_in_names)) != len(built_in_names):
             self.automation_status_var.set("Built-in command names must be unique.")
@@ -1828,6 +1948,12 @@ class BotApp:
                 "duel_maximum",
                 "duel_timeout_seconds",
                 "duel_cooldown_seconds",
+                "raffle_enabled",
+                "cmd_raffle_enter",
+                "raffle_default_title",
+                "raffle_duration_seconds",
+                "raffle_countdown_interval_seconds",
+                "raffle_reward_points",
                 "builtin_responses",
                 "custom_commands",
                 "timed_messages",
@@ -2091,6 +2217,85 @@ class BotApp:
         )
         self._refresh_balance_tree()
 
+    def _raffle_chat_channel(self):
+        if not self.bot_instance:
+            return None
+        channel = getattr(self.bot_instance.loyalty, "latest_channel", None)
+        if channel is not None:
+            return channel
+        get_channel = getattr(self.bot_instance, "get_channel", None)
+        if callable(get_channel):
+            try:
+                return get_channel(self.settings.channel)
+            except Exception:
+                return None
+        return None
+
+    def _run_raffle_action(self, action_name, coroutine_factory):
+        if not self.bot_instance or not getattr(self, "_bot_loop", None):
+            self.raffle_status_var.set("Start the bot before using raffle controls.")
+            return
+        if not self._apply_automation_settings(quiet=True):
+            self.raffle_status_var.set("Fix invalid raffle settings before continuing.")
+            return
+        channel = self._raffle_chat_channel()
+        if channel is None:
+            self.raffle_status_var.set(
+                "The bot needs an active Twitch chat connection before it can announce raffles."
+            )
+            return
+
+        future = asyncio.run_coroutine_threadsafe(
+            coroutine_factory(channel),
+            self._bot_loop,
+        )
+
+        def _done(_future):
+            try:
+                result = _future.result()
+            except Exception as exc:
+                message = f"Raffle {action_name} failed: {exc}"
+            else:
+                message = result
+            self.root.after(0, lambda: self.raffle_status_var.set(message))
+
+        future.add_done_callback(_done)
+
+    def _start_dashboard_raffle(self):
+        title = self.raffle_title_var.get().strip() or "Raffle"
+        entry_command = self.cmd_raffle_enter_var.get().strip().lstrip("!")
+
+        async def do_start(channel):
+            started = await self.bot_instance.loyalty.start_raffle(
+                title=title,
+                entry_command=entry_command,
+                duration_seconds=int(self.raffle_duration_var.get()),
+                countdown_interval_seconds=int(self.raffle_countdown_interval_var.get()),
+                reward_points=int(self.raffle_reward_var.get()),
+                channel=channel,
+            )
+            if not started:
+                return "A raffle is already active, or raffles are disabled."
+            return f"Raffle active: {title}. Viewers enter with !{entry_command or self.settings.cmd_raffle_enter}."
+
+        self._run_raffle_action("start", do_start)
+
+    def _draw_dashboard_raffle(self):
+        async def do_draw(channel):
+            winner = await self.bot_instance.loyalty.draw_raffle(channel)
+            if winner is None:
+                return "Raffle ended with no winner."
+            return f"Raffle winner: {winner.get('display_name') or winner['username']}."
+
+        self._run_raffle_action("draw", do_draw)
+
+    def _cancel_dashboard_raffle(self):
+        async def do_cancel(channel):
+            cancelled = await self.bot_instance.loyalty.cancel_raffle(channel)
+            return "Raffle cancelled." if cancelled else "There is no active raffle to cancel."
+
+        self._run_raffle_action("cancel", do_cancel)
+
     def _backup_loyalty_database(self):
         path = filedialog.asksaveasfilename(
             title="Backup Loyalty Database",
@@ -2192,6 +2397,25 @@ class BotApp:
         tb.Label(cmd_frame, text="!clearqueue (Mod/Broadcaster) - Empty the queue").pack(anchor="w", pady=2)
         tb.Label(cmd_frame, text="!full (Mod/Broadcaster) - Toggle SR between small PiP window and full screen").pack(anchor="w", pady=2)
         tb.Label(cmd_frame, text="!info (Mod/VIP/Broadcaster) - Toggle the persistent song title in the OBS source").pack(anchor="w", pady=2)
+        tb.Label(cmd_frame, text="!raffle - Enter the active streamer-started raffle when raffles are enabled").pack(anchor="w", pady=2)
+        tb.Label(cmd_frame, text="Public command list URL:").pack(anchor="w", pady=(8, 2))
+
+        self.commands_api_entry = tb.Entry(cmd_frame, width=70)
+        self.commands_api_entry.insert(0, f"http://127.0.0.1:{self.port_var.get()}/commands")
+        self.commands_api_entry.configure(state="readonly")
+        self.commands_api_entry.pack(anchor="w", padx=20, pady=(0, 8))
+
+        def _update_commands_url(*args):
+            try:
+                new_port = self.port_var.get()
+                self.commands_api_entry.configure(state="normal")
+                self.commands_api_entry.delete(0, tk.END)
+                self.commands_api_entry.insert(0, f"http://127.0.0.1:{new_port}/commands")
+                self.commands_api_entry.configure(state="readonly")
+            except Exception:
+                pass
+
+        self.port_var.trace_add("write", _update_commands_url)
 
         local_frame = tb.Labelframe(container, text="Local Library", padding=15)
         local_frame.pack(fill=X, pady=10)
@@ -2279,8 +2503,8 @@ class BotApp:
             loyalty_frame,
             text=(
                 "7. Games: !gamble <amount|all>, !duel <user> <amount|all>, "
-                "!accept, and !decline. Names, limits, odds, payouts, timeouts, and "
-                "cooldowns are configurable."
+                "!accept, !decline, and dashboard-started raffles. Names, limits, "
+                "odds, payouts, timeouts, rewards, and cooldowns are configurable."
             ),
         ).pack(anchor="w", pady=2)
         tb.Label(
@@ -2293,7 +2517,12 @@ class BotApp:
         ).pack(anchor="w", pady=2)
         tb.Label(
             loyalty_frame,
-            text="10. Silent lurkers cannot be rewarded automatically because Twitch does not provide a reliable complete viewer list; active-chat bonuses use recent messages.",
+            text="10. The public command list is available at /commands while the bot is running. It does not expose OAuth tokens, local file paths, database paths, or Streamer.bot connection details.",
+            wraplength=970,
+        ).pack(anchor="w", pady=2)
+        tb.Label(
+            loyalty_frame,
+            text="11. Silent lurkers cannot be rewarded automatically because Twitch does not provide a reliable complete viewer list; active-chat bonuses use recent messages.",
             foreground="#ffcc00",
             wraplength=970,
         ).pack(anchor="w", pady=(4, 0))
@@ -2394,6 +2623,19 @@ class BotApp:
                 self.add_local_btn.config(state=tk.NORMAL)
             else:
                 self.add_local_btn.config(state=tk.DISABLED)
+            if hasattr(self, "raffle_status_var"):
+                raffle = getattr(self.bot_instance.loyalty, "active_raffle", None)
+                if raffle:
+                    import time as _time
+
+                    remaining = max(0, round(float(raffle.get("ends_at", 0)) - _time.time()))
+                    entries = len(raffle.get("entries", {}))
+                    self.raffle_status_var.set(
+                        f"Active raffle: {raffle.get('title', 'Raffle')} | "
+                        f"!{raffle.get('entry_command', self.settings.cmd_raffle_enter)} | "
+                        f"{entries} entr{'y' if entries == 1 else 'ies'} | "
+                        f"{remaining}s left"
+                    )
         else:
             self.add_local_btn.config(state=tk.DISABLED)
 
@@ -2465,6 +2707,12 @@ class BotApp:
             self.duel_maximum_var,
             self.duel_timeout_var,
             self.duel_cooldown_var,
+            self.raffle_enabled_var,
+            self.raffle_title_var,
+            self.cmd_raffle_enter_var,
+            self.raffle_duration_var,
+            self.raffle_countdown_interval_var,
+            self.raffle_reward_var,
             self.streamerbot_http_enabled_var,
             self.streamerbot_http_url_var,
             *self.builtin_response_vars.values(),
@@ -2603,6 +2851,12 @@ class BotApp:
             "duel_maximum_var": self.settings.duel_maximum,
             "duel_timeout_var": self.settings.duel_timeout_seconds,
             "duel_cooldown_var": self.settings.duel_cooldown_seconds,
+            "raffle_enabled_var": self.settings.raffle_enabled,
+            "raffle_title_var": self.settings.raffle_default_title,
+            "cmd_raffle_enter_var": self.settings.cmd_raffle_enter,
+            "raffle_duration_var": self.settings.raffle_duration_seconds,
+            "raffle_countdown_interval_var": self.settings.raffle_countdown_interval_seconds,
+            "raffle_reward_var": self.settings.raffle_reward_points,
             "streamerbot_http_enabled_var": self.settings.streamerbot_http_enabled,
             "streamerbot_http_url_var": self.settings.streamerbot_http_url,
         }

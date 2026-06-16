@@ -1,5 +1,6 @@
 import logging
 import asyncio
+import html
 import json
 import sys
 import hashlib
@@ -11,7 +12,7 @@ import weakref
 
 from settings import load_settings, save_settings, apply_profile_settings
 from obs_controller import OBSController
-from loyalty_engine import LoyaltyEngine
+from loyalty_engine import LoyaltyEngine, build_public_command_catalog
 
 # Configure Logging
 logging.basicConfig(
@@ -73,6 +74,8 @@ class Bot(commands.Bot):
             web.get('/api/loyalty/balance', self.handle_api_loyalty_balance),
             web.get('/api/loyalty/leaderboard', self.handle_api_loyalty_leaderboard),
             web.post('/api/loyalty/adjust', self.handle_api_loyalty_adjust),
+            web.get('/api/commands', self.handle_api_commands),
+            web.get('/commands', self.handle_commands_page),
         ])
         media_path = self.base_path / 'temp_sr'
         media_path.mkdir(exist_ok=True)
@@ -346,6 +349,121 @@ class Bot(commands.Bot):
             "balance": balance,
             "currency": self.settings.currency_name,
         })
+
+    async def handle_api_commands(self, request):
+        return web.json_response(
+            build_public_command_catalog(
+                self.settings,
+                active_raffle=self.loyalty.active_raffle,
+            )
+        )
+
+    async def handle_commands_page(self, request):
+        catalog = build_public_command_catalog(
+            self.settings,
+            active_raffle=self.loyalty.active_raffle,
+        )
+        sections = []
+        for category in catalog["categories"]:
+            rows = [
+                command for command in catalog["commands"]
+                if command["category"] == category
+            ]
+            if not rows:
+                continue
+            items = []
+            for command in rows:
+                aliases = ", ".join(command.get("aliases", []))
+                meta = []
+                if command.get("permission") and command["permission"] != "everyone":
+                    meta.append(f"Role: {html.escape(command['permission'])}")
+                if command.get("cost"):
+                    meta.append(f"Cost: {command['cost']} {html.escape(catalog['currency'])}")
+                if command.get("cooldown_seconds"):
+                    meta.append(f"Cooldown: {command['cooldown_seconds']}s")
+                if command.get("user_cooldown_seconds"):
+                    meta.append(f"User cooldown: {command['user_cooldown_seconds']}s")
+                if aliases:
+                    meta.append(f"Aliases: {html.escape(aliases)}")
+                meta_text = " | ".join(meta)
+                items.append(
+                    "<article class=\"command-card\">"
+                    f"<h3>{html.escape(command['command'])}</h3>"
+                    f"<p>{html.escape(command['description'])}</p>"
+                    f"<small>{meta_text}</small>"
+                    "</article>"
+                )
+            sections.append(
+                f"<section><h2>{html.escape(category)}</h2>"
+                f"<div class=\"command-grid\">{''.join(items)}</div></section>"
+            )
+        body = "\n".join(sections) or "<p>No public commands are enabled.</p>"
+        page = f"""<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Twitch Stream Bot Commands</title>
+  <style>
+    :root {{
+      color-scheme: dark;
+      --bg: #151515;
+      --panel: #232323;
+      --panel-2: #2f2f2f;
+      --text: #f2f2f2;
+      --muted: #aeb4ba;
+      --accent: #36a3ff;
+      --border: #464646;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      background: radial-gradient(circle at top left, #29323c 0, var(--bg) 38rem);
+      color: var(--text);
+      font-family: "Segoe UI", Tahoma, sans-serif;
+      line-height: 1.45;
+    }}
+    main {{ max-width: 1100px; margin: 0 auto; padding: 32px 18px 48px; }}
+    header {{ margin-bottom: 28px; }}
+    h1 {{ margin: 0 0 8px; font-size: clamp(2rem, 4vw, 3.4rem); }}
+    h2 {{ margin: 28px 0 12px; color: var(--accent); }}
+    .command-grid {{
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 12px;
+    }}
+    .command-card {{
+      min-height: 128px;
+      padding: 16px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: linear-gradient(180deg, var(--panel-2), var(--panel));
+    }}
+    .command-card h3 {{ margin: 0 0 8px; font-size: 1.2rem; }}
+    .command-card p {{ margin: 0 0 10px; color: var(--text); }}
+    .command-card small {{ color: var(--muted); }}
+    .privacy {{ color: var(--muted); max-width: 760px; }}
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Twitch Stream Bot Commands</h1>
+      <p class="privacy">This page lists viewer-facing commands only. Private app settings, local file paths, credentials, Streamer.bot connection details, and loyalty databases are not exposed.</p>
+    </header>
+    {body}
+  </main>
+</body>
+</html>"""
+        return web.Response(
+            text=page,
+            content_type="text/html",
+            headers={
+                "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+                "Pragma": "no-cache",
+                "Expires": "0",
+            },
+        )
 
     def _build_media_id(self, song_details: dict, file_path: str) -> str:
         source_type = song_details.get("source_type", "downloaded")

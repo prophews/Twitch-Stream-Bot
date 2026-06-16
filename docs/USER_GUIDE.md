@@ -142,10 +142,19 @@ Open **Loyalty & Automation** to configure:
 - Duel limits, timeout, and cooldown
 - Custom commands with permissions, costs, cooldowns, responses, and actions
 - Timed chat messages and optional Streamer.bot actions
+- Streamer-started raffles with announcements, reminders, winner drawing, and optional currency rewards
 
 Common built-in commands are `!points`, `!top`, `!givepoints`, `!gamble`,
-`!duel`, `!accept`, and `!decline`. Moderator adjustment commands default to
-`!addpoints` and `!removepoints`.
+`!duel`, `!accept`, `!decline`, and `!raffle`. Moderator adjustment commands
+default to `!addpoints` and `!removepoints`.
+
+Raffles are started from the **Raffle Control** section in the app, not by
+viewers in chat. Viewers use the configured raffle entry command only while a
+raffle is active. Duplicate entries are ignored.
+
+Custom commands include a **Public list description** field. Use that field for
+viewer-facing redeem descriptions instead of putting local file paths or private
+Streamer.bot action names in a public page.
 
 Loyalty balances are stored locally in:
 
@@ -155,7 +164,22 @@ Loyalty balances are stored locally in:
 
 Use the built-in backup and restore controls before moving to another computer.
 
-## 8. Streamer.bot Integration
+## 8. Public Command List
+
+While the bot is running, open:
+
+```text
+http://127.0.0.1:8081/commands
+```
+
+Change `8081` if your app uses a different web server port.
+
+The command list page shows viewer-facing song request commands, loyalty/game
+commands, raffle entry details, and enabled custom commands. It intentionally
+does not expose OAuth tokens, local media paths, database paths, Streamer.bot
+URLs, Streamer.bot action IDs, logs, or private config files.
+
+## 9. Streamer.bot Integration
 
 Streamer.bot remains an independent automation application. This bot can call a
 selected Streamer.bot action when a custom command or timer runs.
@@ -183,7 +207,7 @@ http://127.0.0.1:8081/api/profiles/apply?name=PROFILE_NAME
 Use a Streamer.bot **Core → Network → Fetch URL** sub-action. Replace spaces in
 profile names with `%20`.
 
-## 9. Profiles
+## 10. Profiles
 
 Profiles capture all non-secret modifiable settings, including:
 
@@ -200,7 +224,7 @@ are excluded.
 Type a profile name on the Dashboard and click **Save Current**. Select it and
 click **Apply** to switch configurations.
 
-## 10. User Data and Privacy
+## 11. User Data and Privacy
 
 Installed application files are separate from personal data. User data is kept
 in:
@@ -216,7 +240,7 @@ folder, which allows settings to survive reinstalling or updating.
 Never share `config.json` or an OAuth token publicly. The GitHub release ZIP and
 installer are automatically checked to exclude runtime configuration and media.
 
-## 11. Troubleshooting
+## 12. Troubleshooting
 
 ### Commands do nothing
 
@@ -251,7 +275,7 @@ Install the newest release from GitHub. Releases bundle the current tested
 Change **Web Server Port** under Settings, save, restart the bot, and update the
 OBS Browser Source URL to match.
 
-## 12. Getting Help
+## 13. Getting Help
 
 Open a [GitHub issue](https://github.com/prophews/Twitch-Stream-Bot/issues) and
 include the relevant Activity Log lines. Remove OAuth tokens, usernames,
