@@ -706,9 +706,8 @@ class BotApp:
         tb.Label(alias_lf, text="\u26a0 Command alias changes take effect after restarting the bot.",
                  foreground="#ffcc00").grid(row=num_rows*2, column=0, columnspan=3, sticky="w", padx=10, pady=(6,0))
 
-    def _pack_tree_with_scrollbar(self, tree, parent, fill=X, expand=False):
-        table_frame = tb.Frame(parent)
-        table_frame.pack(fill=fill, expand=expand)
+    def _attach_tree_scrollbar(self, tree):
+        table_frame = tree.master
         scrollbar = tb.Scrollbar(table_frame, orient=VERTICAL, command=tree.yview)
         tree.configure(yscrollcommand=scrollbar.set)
         tree.pack(side=LEFT, fill=BOTH, expand=True)
@@ -720,7 +719,6 @@ class BotApp:
 
         tree.bind("<Enter>", lambda _event: tree.bind_all("<MouseWheel>", _on_mousewheel))
         tree.bind("<Leave>", lambda _event: tree.unbind_all("<MouseWheel>"))
-        return table_frame
 
     def _build_automation(self):
         save_bar = tb.Frame(self.automation_frame, padding=(10, 10, 10, 0))
@@ -1131,8 +1129,10 @@ class BotApp:
         commands = tb.Labelframe(container, text="Custom Commands", padding=12)
         commands.pack(fill=BOTH, expand=True, pady=5)
         self.custom_command_rules = [dict(rule) for rule in self.settings.custom_commands]
+        custom_table_frame = tb.Frame(commands)
+        custom_table_frame.pack(fill=X)
         self.custom_command_tree = ttk.Treeview(
-            commands,
+            custom_table_frame,
             columns=("command", "cost", "permission", "action", "response"),
             show="headings",
             height=7,
@@ -1146,7 +1146,7 @@ class BotApp:
         ):
             self.custom_command_tree.heading(column, text=label)
             self.custom_command_tree.column(column, width=width, anchor="w")
-        self._pack_tree_with_scrollbar(self.custom_command_tree, commands, fill=X)
+        self._attach_tree_scrollbar(self.custom_command_tree)
         self.custom_command_tree.bind(
             "<<TreeviewSelect>>", self._load_selected_custom_command
         )
@@ -1268,8 +1268,10 @@ class BotApp:
         timers = tb.Labelframe(container, text="Timed Messages & Actions", padding=12)
         timers.pack(fill=BOTH, expand=True, pady=5)
         self.timed_message_rules = [dict(rule) for rule in self.settings.timed_messages]
+        timer_table_frame = tb.Frame(timers)
+        timer_table_frame.pack(fill=X)
         self.timer_tree = ttk.Treeview(
-            timers,
+            timer_table_frame,
             columns=("name", "interval", "minimum", "action", "message"),
             show="headings",
             height=5,
@@ -1283,7 +1285,7 @@ class BotApp:
         ):
             self.timer_tree.heading(column, text=label)
             self.timer_tree.column(column, width=width, anchor="w")
-        self._pack_tree_with_scrollbar(self.timer_tree, timers, fill=X)
+        self._attach_tree_scrollbar(self.timer_tree)
         self.timer_tree.bind("<<TreeviewSelect>>", self._load_selected_timer)
 
         timer_editor = tb.Frame(timers)
@@ -1366,8 +1368,10 @@ class BotApp:
 
         balances = tb.Labelframe(container, text="Balances & Leaderboard", padding=12)
         balances.pack(fill=BOTH, expand=True, pady=5)
+        balance_table_frame = tb.Frame(balances)
+        balance_table_frame.pack(fill=X)
         self.balance_tree = ttk.Treeview(
-            balances,
+            balance_table_frame,
             columns=("rank", "user", "balance"),
             show="headings",
             height=7,
@@ -1379,7 +1383,7 @@ class BotApp:
         ):
             self.balance_tree.heading(column, text=label)
             self.balance_tree.column(column, width=width, anchor="w")
-        self._pack_tree_with_scrollbar(self.balance_tree, balances, fill=X)
+        self._attach_tree_scrollbar(self.balance_tree)
 
         balance_controls = tb.Frame(balances)
         balance_controls.pack(fill=X, pady=(8, 0))
