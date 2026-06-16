@@ -1164,6 +1164,7 @@ class BotApp:
         self.custom_action_id_var = tk.StringVar()
         self.custom_description_var = tk.StringVar()
         self.custom_response_var = tk.StringVar()
+        editor.columnconfigure(1, weight=1)
         editor_specs = [
             ("Command", self.custom_name_var),
             ("Aliases (comma separated)", self.custom_aliases_var),
@@ -1171,17 +1172,15 @@ class BotApp:
             ("Global cooldown seconds", self.custom_cooldown_var),
             ("Per-user cooldown seconds", self.custom_user_cooldown_var),
         ]
-        for index, (label, variable) in enumerate(editor_specs):
-            row = index // 2
-            column = (index % 2) * 2
+        for row, (label, variable) in enumerate(editor_specs):
             tb.Label(editor, text=label).grid(
-                row=row, column=column, sticky="w", padx=(0, 8), pady=4
+                row=row, column=0, sticky="w", padx=(0, 8), pady=3
             )
             tb.Entry(editor, textvariable=variable, width=34).grid(
-                row=row, column=column + 1, sticky="ew", padx=(0, 20), pady=4
+                row=row, column=1, sticky="ew", pady=3
             )
         tb.Label(editor, text="Streamer.bot action").grid(
-            row=2, column=2, sticky="w", padx=(0, 8), pady=4
+            row=5, column=0, sticky="w", padx=(0, 8), pady=3
         )
         self.custom_action_combo = tb.Combobox(
             editor,
@@ -1190,36 +1189,36 @@ class BotApp:
             width=31,
         )
         self.custom_action_combo.grid(
-            row=2, column=3, sticky="ew", padx=(0, 20), pady=4
+            row=5, column=1, sticky="ew", pady=3
         )
         self.custom_action_combo.bind(
             "<<ComboboxSelected>>", self._custom_action_selected
         )
-        editor.columnconfigure(1, weight=1)
-        editor.columnconfigure(3, weight=1)
-        tb.Label(editor, text="Permission").grid(row=3, column=0, sticky="w", pady=4)
+        tb.Label(editor, text="Permission").grid(row=6, column=0, sticky="w", pady=3)
+        permission_row = tb.Frame(editor)
+        permission_row.grid(row=6, column=1, sticky="ew", pady=3)
         tb.Combobox(
-            editor,
+            permission_row,
             textvariable=self.custom_permission_var,
             values=("everyone", "subscriber", "vip", "mod", "broadcaster"),
             state="readonly",
             width=18,
-        ).grid(row=3, column=1, sticky="w", pady=4)
+        ).pack(side=LEFT)
         tb.Checkbutton(
-            editor,
+            permission_row,
             text="Command enabled",
             variable=self.custom_enabled_var,
             bootstyle="round-toggle",
-        ).grid(row=3, column=2, columnspan=2, sticky="w", pady=4)
-        tb.Label(editor, text="Chat response").grid(row=4, column=0, sticky="w", pady=4)
+        ).pack(side=LEFT, padx=(16, 0))
+        tb.Label(editor, text="Chat response").grid(row=7, column=0, sticky="w", pady=3)
         tb.Entry(editor, textvariable=self.custom_response_var).grid(
-            row=4, column=1, columnspan=3, sticky="ew", padx=(0, 20), pady=4
+            row=7, column=1, sticky="ew", pady=3
         )
         tb.Label(editor, text="Public list description").grid(
-            row=5, column=0, sticky="w", pady=4
+            row=8, column=0, sticky="w", pady=3
         )
         tb.Entry(editor, textvariable=self.custom_description_var).grid(
-            row=5, column=1, columnspan=3, sticky="ew", padx=(0, 20), pady=4
+            row=8, column=1, sticky="ew", pady=3
         )
         tb.Label(
             editor,
@@ -1229,7 +1228,8 @@ class BotApp:
                 "The public description is safe to show on the command list page."
             ),
             foreground="#aeb4ba",
-        ).grid(row=6, column=0, columnspan=4, sticky="w", pady=(4, 8))
+            wraplength=820,
+        ).grid(row=9, column=0, columnspan=2, sticky="w", pady=(4, 8))
 
         button_row = tb.Frame(commands)
         button_row.pack(fill=X)
@@ -1238,31 +1238,31 @@ class BotApp:
             text="Add / Update Command",
             command=self._save_custom_command_rule,
             bootstyle="success",
-        ).pack(side=LEFT)
+        ).grid(row=0, column=0, sticky="w", padx=(0, 6), pady=3)
         tb.Button(
             button_row,
             text="New",
             command=self._clear_custom_command_editor,
             bootstyle="primary",
-        ).pack(side=LEFT, padx=6)
+        ).grid(row=0, column=1, sticky="w", padx=(0, 6), pady=3)
         tb.Button(
             button_row,
             text="Delete Selected",
             command=self._delete_custom_command_rule,
             bootstyle="outline-danger",
-        ).pack(side=LEFT)
+        ).grid(row=0, column=2, sticky="w", padx=(0, 6), pady=3)
         tb.Button(
             button_row,
             text="Export Rules",
             command=self._export_custom_commands,
             bootstyle="secondary",
-        ).pack(side=LEFT, padx=(18, 6))
+        ).grid(row=1, column=0, sticky="w", padx=(0, 6), pady=3)
         tb.Button(
             button_row,
             text="Import Rules",
             command=self._import_custom_commands,
             bootstyle="secondary",
-        ).pack(side=LEFT)
+        ).grid(row=1, column=1, sticky="w", padx=(0, 6), pady=3)
         self._refresh_custom_command_tree()
 
         timers = tb.Labelframe(container, text="Timed Messages & Actions", padding=12)
@@ -1295,22 +1295,21 @@ class BotApp:
         self.timer_action_var = tk.StringVar()
         self.timer_action_id_var = tk.StringVar()
         self.timer_message_var = tk.StringVar()
+        timer_editor.columnconfigure(1, weight=1)
         timer_specs = [
             ("Name", self.timer_name_var),
             ("Interval minutes", self.timer_interval_var),
             ("Minimum chat messages", self.timer_minimum_var),
         ]
-        for index, (label, variable) in enumerate(timer_specs):
-            row = index // 2
-            column = (index % 2) * 2
+        for row, (label, variable) in enumerate(timer_specs):
             tb.Label(timer_editor, text=label).grid(
-                row=row, column=column, sticky="w", padx=(0, 8), pady=4
+                row=row, column=0, sticky="w", padx=(0, 8), pady=3
             )
             tb.Entry(timer_editor, textvariable=variable, width=34).grid(
-                row=row, column=column + 1, sticky="ew", padx=(0, 20), pady=4
+                row=row, column=1, sticky="ew", pady=3
             )
         tb.Label(timer_editor, text="Streamer.bot action").grid(
-            row=1, column=2, sticky="w", padx=(0, 8), pady=4
+            row=3, column=0, sticky="w", padx=(0, 8), pady=3
         )
         self.timer_action_combo = tb.Combobox(
             timer_editor,
@@ -1319,30 +1318,30 @@ class BotApp:
             width=31,
         )
         self.timer_action_combo.grid(
-            row=1, column=3, sticky="ew", padx=(0, 20), pady=4
+            row=3, column=1, sticky="ew", pady=3
         )
         self.timer_action_combo.bind(
             "<<ComboboxSelected>>", self._timer_action_selected
         )
-        timer_editor.columnconfigure(1, weight=1)
-        timer_editor.columnconfigure(3, weight=1)
         tb.Label(timer_editor, text="Chat message").grid(
-            row=2, column=0, sticky="w", pady=4
+            row=4, column=0, sticky="w", pady=3
         )
         tb.Entry(timer_editor, textvariable=self.timer_message_var).grid(
-            row=2, column=1, columnspan=3, sticky="ew", padx=(0, 20), pady=4
+            row=4, column=1, sticky="ew", pady=3
         )
+        timer_option_row = tb.Frame(timer_editor)
+        timer_option_row.grid(row=5, column=1, sticky="ew", pady=3)
         tb.Checkbutton(
-            timer_editor,
+            timer_option_row,
             text="Timer enabled",
             variable=self.timer_enabled_var,
             bootstyle="round-toggle",
-        ).grid(row=3, column=0, columnspan=2, sticky="w", pady=4)
+        ).pack(side=LEFT)
         tb.Label(
-            timer_editor,
+            timer_option_row,
             text="Placeholders: {timer}, {chat_messages}, {currency}, {currency_singular}.",
             foreground="#aeb4ba",
-        ).grid(row=3, column=2, columnspan=2, sticky="w", pady=4)
+        ).pack(side=LEFT, padx=(16, 0))
         timer_buttons = tb.Frame(timers)
         timer_buttons.pack(fill=X, pady=(5, 0))
         tb.Button(
@@ -1350,19 +1349,19 @@ class BotApp:
             text="Add / Update Timer",
             command=self._save_timer_rule,
             bootstyle="success",
-        ).pack(side=LEFT)
+        ).grid(row=0, column=0, sticky="w", padx=(0, 6), pady=3)
         tb.Button(
             timer_buttons,
             text="New",
             command=self._clear_timer_editor,
             bootstyle="primary",
-        ).pack(side=LEFT, padx=6)
+        ).grid(row=0, column=1, sticky="w", padx=(0, 6), pady=3)
         tb.Button(
             timer_buttons,
             text="Delete Selected",
             command=self._delete_timer_rule,
             bootstyle="outline-danger",
-        ).pack(side=LEFT)
+        ).grid(row=0, column=2, sticky="w", padx=(0, 6), pady=3)
         self._refresh_timer_tree()
 
         balances = tb.Labelframe(container, text="Balances & Leaderboard", padding=12)
@@ -1387,48 +1386,57 @@ class BotApp:
         self.balance_user_var = tk.StringVar()
         self.balance_amount_var = tk.StringVar(value="10")
         self.balance_reason_var = tk.StringVar(value="dashboard adjustment")
-        tb.Label(balance_controls, text="User").pack(side=LEFT)
+        balance_controls.columnconfigure(1, weight=1)
+        balance_controls.columnconfigure(3, weight=1)
+        balance_controls.columnconfigure(5, weight=2)
+        tb.Label(balance_controls, text="User").grid(
+            row=0, column=0, sticky="w", padx=(0, 6), pady=3
+        )
         tb.Entry(
             balance_controls, textvariable=self.balance_user_var, width=18
-        ).pack(side=LEFT, padx=(6, 12))
-        tb.Label(balance_controls, text="Amount").pack(side=LEFT)
+        ).grid(row=0, column=1, sticky="ew", padx=(0, 12), pady=3)
+        tb.Label(balance_controls, text="Amount").grid(
+            row=0, column=2, sticky="w", padx=(0, 6), pady=3
+        )
         tb.Entry(
             balance_controls, textvariable=self.balance_amount_var, width=9
-        ).pack(side=LEFT, padx=(6, 12))
-        tb.Label(balance_controls, text="Reason").pack(side=LEFT)
+        ).grid(row=0, column=3, sticky="ew", padx=(0, 12), pady=3)
+        tb.Label(balance_controls, text="Reason").grid(
+            row=0, column=4, sticky="w", padx=(0, 6), pady=3
+        )
         tb.Entry(
             balance_controls, textvariable=self.balance_reason_var, width=28
-        ).pack(side=LEFT, padx=(6, 12))
+        ).grid(row=0, column=5, sticky="ew", pady=3)
         tb.Button(
             balance_controls,
             text="Add",
             command=lambda: self._adjust_dashboard_balance(1),
             bootstyle="success",
-        ).pack(side=LEFT)
+        ).grid(row=1, column=0, sticky="w", padx=(0, 6), pady=3)
         tb.Button(
             balance_controls,
             text="Remove",
             command=lambda: self._adjust_dashboard_balance(-1),
             bootstyle="outline-danger",
-        ).pack(side=LEFT, padx=6)
+        ).grid(row=1, column=1, sticky="w", padx=(0, 6), pady=3)
         tb.Button(
             balance_controls,
             text="Refresh",
             command=self._refresh_balance_tree,
             bootstyle="primary",
-        ).pack(side=LEFT)
+        ).grid(row=1, column=2, sticky="w", padx=(0, 6), pady=3)
         tb.Button(
             balance_controls,
             text="Backup",
             command=self._backup_loyalty_database,
             bootstyle="secondary",
-        ).pack(side=LEFT, padx=(18, 6))
+        ).grid(row=1, column=3, sticky="w", padx=(0, 6), pady=3)
         tb.Button(
             balance_controls,
             text="Restore",
             command=self._restore_loyalty_database,
             bootstyle="secondary",
-        ).pack(side=LEFT)
+        ).grid(row=1, column=4, sticky="w", padx=(0, 6), pady=3)
         self.balance_tree.bind("<<TreeviewSelect>>", self._select_balance_user)
         self._refresh_balance_tree()
 
