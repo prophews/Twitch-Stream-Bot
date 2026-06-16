@@ -968,7 +968,20 @@ class Bot(commands.Bot):
         self._close_started = True
         await self.loyalty.close()
         await self.obs_controller.close()
-        await super().close()
+        # TwitchIO internals are not fully initialized until the client has
+        # actually started. During failed or partial startups, calling close()
+        # can otherwise raise inside TwitchIO and leave the GUI in a bad state.
+        if getattr(self, "_closing", None) is None:
+            return
+        try:
+            await asyncio.wait_for(super().close(), timeout=3)
+        except asyncio.TimeoutError:
+            bot_logger.warning("Timed out while closing Twitch connection.")
+        except AttributeError as exc:
+            if "_closing" in str(exc):
+                bot_logger.debug("Twitch client was not fully initialized during shutdown.")
+            else:
+                raise
 
     async def shutdown(self):
         """Shut down the bot and embedded web services without hanging the GUI."""
@@ -984,7 +997,10 @@ class Bot(commands.Bot):
 
         for ws in active_websockets:
             try:
-                await ws.close(code=WSCloseCode.GOING_AWAY, message=b"bot shutdown")
+                await asyncio.wait_for(
+                    ws.close(code=WSCloseCode.GOING_AWAY, message=b"bot shutdown"),
+                    timeout=1,
+                )
             except Exception:
                 pass
 
@@ -994,19 +1010,19 @@ class Bot(commands.Bot):
 
         if self.site:
             try:
-                await self.site.stop()
+                await asyncio.wait_for(self.site.stop(), timeout=2)
             except Exception:
                 pass
             self.site = None
 
         if self.runner:
             try:
-                await self.runner.cleanup()
+                await asyncio.wait_for(self.runner.cleanup(), timeout=2)
             except Exception:
                 pass
             self.runner = None
 
-        await self.close()
+        await asyncio.wait_for(self.close(), timeout=4)
 
 if __name__ == "__main__":
     bot = Bot()

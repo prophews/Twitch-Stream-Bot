@@ -6,6 +6,23 @@ from bot import Bot
 
 
 class BotShutdownTests(unittest.IsolatedAsyncioTestCase):
+    async def test_close_handles_partial_startup_without_twitch_client_state(self):
+        calls = []
+
+        async def record(name):
+            calls.append(name)
+
+        bot = Bot.__new__(Bot)
+        bot._close_started = False
+        bot.loyalty = SimpleNamespace(close=lambda: record("loyalty"))
+        bot.obs_controller = SimpleNamespace(close=lambda: record("obs"))
+        bot._closing = None
+
+        await Bot.close(bot)
+
+        self.assertEqual(calls, ["loyalty", "obs"])
+        self.assertTrue(bot._close_started)
+
     async def test_shutdown_stops_owned_automation_before_other_services(self):
         calls = []
 
