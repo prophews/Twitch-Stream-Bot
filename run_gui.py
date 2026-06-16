@@ -1170,7 +1170,6 @@ class BotApp:
         self.custom_user_cooldown_var = tk.StringVar(value="0")
         self.custom_action_var = tk.StringVar()
         self.custom_action_id_var = tk.StringVar()
-        self.custom_description_var = tk.StringVar()
         self.custom_response_var = tk.StringVar()
         editor.columnconfigure(1, weight=1)
         editor_specs = [
@@ -1222,22 +1221,15 @@ class BotApp:
         tb.Entry(editor, textvariable=self.custom_response_var).grid(
             row=7, column=1, sticky="ew", pady=3
         )
-        tb.Label(editor, text="Public list description").grid(
-            row=8, column=0, sticky="w", pady=3
-        )
-        tb.Entry(editor, textvariable=self.custom_description_var).grid(
-            row=8, column=1, sticky="ew", pady=3
-        )
         tb.Label(
             editor,
             text=(
                 "Placeholders: {user}, {command}, {args}, {balance}, {cost}, "
-                "{currency}, {currency_singular}. Blank response means silent. "
-                "The public description is safe to show on the command list page."
+                "{currency}, {currency_singular}. Blank response means silent."
             ),
             foreground="#aeb4ba",
             wraplength=820,
-        ).grid(row=9, column=0, columnspan=2, sticky="w", pady=(4, 8))
+        ).grid(row=8, column=0, columnspan=2, sticky="w", pady=(4, 8))
 
         button_row = tb.Frame(commands)
         button_row.pack(fill=X)
@@ -1487,7 +1479,6 @@ class BotApp:
         self.custom_user_cooldown_var.set(str(rule.get("user_cooldown_seconds", 0)))
         self.custom_action_var.set(rule.get("streamerbot_action", ""))
         self.custom_action_id_var.set(rule.get("streamerbot_action_id", ""))
-        self.custom_description_var.set(rule.get("description", ""))
         self.custom_response_var.set(rule.get("response", ""))
 
     def _clear_custom_command_editor(self):
@@ -1502,7 +1493,6 @@ class BotApp:
         self.custom_user_cooldown_var.set("0")
         self.custom_action_var.set("")
         self.custom_action_id_var.set("")
-        self.custom_description_var.set("")
         self.custom_response_var.set("")
 
     def _save_custom_command_rule(self):
@@ -1579,7 +1569,6 @@ class BotApp:
                     self.custom_action_var.get(),
                     self.custom_action_id_var.get(),
                 ),
-                "description": self.custom_description_var.get().strip()[:200],
                 "response": self.custom_response_var.get().strip(),
             }
         except ValueError:
@@ -2418,24 +2407,6 @@ class BotApp:
         tb.Label(cmd_frame, text="!full (Mod/Broadcaster) - Toggle SR between small PiP window and full screen").pack(anchor="w", pady=2)
         tb.Label(cmd_frame, text="!info (Mod/VIP/Broadcaster) - Toggle the persistent song title in the OBS source").pack(anchor="w", pady=2)
         tb.Label(cmd_frame, text="!raffle - Enter the active streamer-started raffle when raffles are enabled").pack(anchor="w", pady=2)
-        tb.Label(cmd_frame, text="Public command list URL:").pack(anchor="w", pady=(8, 2))
-
-        self.commands_api_entry = tb.Entry(cmd_frame, width=70)
-        self.commands_api_entry.insert(0, f"http://127.0.0.1:{self.port_var.get()}/commands")
-        self.commands_api_entry.configure(state="readonly")
-        self.commands_api_entry.pack(anchor="w", padx=20, pady=(0, 8))
-
-        def _update_commands_url(*args):
-            try:
-                new_port = self.port_var.get()
-                self.commands_api_entry.configure(state="normal")
-                self.commands_api_entry.delete(0, tk.END)
-                self.commands_api_entry.insert(0, f"http://127.0.0.1:{new_port}/commands")
-                self.commands_api_entry.configure(state="readonly")
-            except Exception:
-                pass
-
-        self.port_var.trace_add("write", _update_commands_url)
 
         local_frame = tb.Labelframe(container, text="Local Library", padding=15)
         local_frame.pack(fill=X, pady=10)
@@ -2537,12 +2508,7 @@ class BotApp:
         ).pack(anchor="w", pady=2)
         tb.Label(
             loyalty_frame,
-            text="10. The public command list is available at /commands while the bot is running. It does not expose OAuth tokens, local file paths, database paths, or Streamer.bot connection details.",
-            wraplength=970,
-        ).pack(anchor="w", pady=2)
-        tb.Label(
-            loyalty_frame,
-            text="11. Silent lurkers cannot be rewarded automatically because Twitch does not provide a reliable complete viewer list; active-chat bonuses use recent messages.",
+            text="10. Silent lurkers cannot be rewarded automatically because Twitch does not provide a reliable complete viewer list; active-chat bonuses use recent messages.",
             foreground="#ffcc00",
             wraplength=970,
         ).pack(anchor="w", pady=(4, 0))

@@ -1,4 +1,3 @@
-import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,7 +6,6 @@ from aiohttp import web
 
 from loyalty_engine import (
     LoyaltyEngine,
-    build_public_command_catalog,
     normalize_custom_command_rule,
 )
 from settings import BotSettings
@@ -568,43 +566,6 @@ class LoyaltyEngineTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(normalized["permission"], "everyone")
         self.assertEqual(normalized["streamerbot_action_id"], "action-123")
         self.assertNotIn("unknown_code", normalized)
-
-    def test_public_command_catalog_exposes_only_safe_metadata(self):
-        self.settings.automation_enabled = True
-        self.settings.raffle_enabled = True
-        self.settings.streamerbot_http_url = "http://127.0.0.1:7474/DoAction"
-        self.settings.custom_commands = [
-            {
-                "enabled": True,
-                "name": "honk",
-                "aliases": ["goose"],
-                "permission": "everyone",
-                "cost": 5,
-                "cooldown_seconds": 10,
-                "user_cooldown_seconds": 20,
-                "description": "Play the goose alert.",
-                "response": "local file is F:\\secret\\goose.gif",
-                "streamerbot_action": "Private Honk Action",
-                "streamerbot_action_id": "action-secret",
-            },
-            {"enabled": False, "name": "hidden", "description": "Do not show"},
-        ]
-
-        catalog = build_public_command_catalog(
-            self.settings,
-            active_raffle={"title": "Movie Night", "entry_command": "raffle"},
-        )
-        serialized = json.dumps(catalog)
-
-        self.assertIn("honk", serialized)
-        self.assertIn("goose", serialized)
-        self.assertIn("Play the goose alert.", serialized)
-        self.assertIn("Movie Night", serialized)
-        self.assertNotIn("hidden", serialized)
-        self.assertNotIn("Private Honk Action", serialized)
-        self.assertNotIn("action-secret", serialized)
-        self.assertNotIn("127.0.0.1:7474", serialized)
-        self.assertNotIn("F:\\secret", serialized)
 
 
 if __name__ == "__main__":

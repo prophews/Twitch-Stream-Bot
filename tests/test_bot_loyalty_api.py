@@ -31,8 +31,6 @@ class LoyaltyApiTests(unittest.IsolatedAsyncioTestCase):
                     self.bot.handle_api_loyalty_leaderboard,
                 ),
                 web.post("/api/loyalty/adjust", self.bot.handle_api_loyalty_adjust),
-                web.get("/api/commands", self.bot.handle_api_commands),
-                web.get("/commands", self.bot.handle_commands_page),
             ]
         )
         self.client = TestClient(TestServer(app))
@@ -66,45 +64,6 @@ class LoyaltyApiTests(unittest.IsolatedAsyncioTestCase):
             json={"user": "viewer", "amount": "not-a-number"},
         )
         self.assertEqual(response.status, 400)
-
-    async def test_public_commands_endpoint_is_sanitized(self):
-        self.bot.settings.automation_enabled = True
-        self.bot.settings.custom_commands = [
-            {
-                "enabled": True,
-                "name": "alert",
-                "aliases": ["redeem"],
-                "cost": 10,
-                "description": "Run the alert.",
-                "response": "private response F:\\Media\\secret.gif",
-                "streamerbot_action": "Private Action",
-                "streamerbot_action_id": "private-id",
-            }
-        ]
-        self.bot.loyalty.active_raffle = {
-            "title": "Prize Night",
-            "entry_command": "raffle",
-            "entries": {},
-        }
-
-        response = await self.client.get("/api/commands")
-        self.assertEqual(response.status, 200)
-        payload = await response.json()
-        serialized = str(payload)
-
-        self.assertTrue(payload["ok"])
-        self.assertIn("commands", payload)
-        self.assertIn("alert", serialized)
-        self.assertIn("Prize Night", serialized)
-        self.assertNotIn("Private Action", serialized)
-        self.assertNotIn("private-id", serialized)
-        self.assertNotIn("F:\\Media", serialized)
-
-        page = await self.client.get("/commands")
-        self.assertEqual(page.status, 200)
-        text = await page.text()
-        self.assertIn("Twitch Stream Bot Commands", text)
-        self.assertNotIn("Private Action", text)
 
 
 if __name__ == "__main__":
