@@ -254,6 +254,57 @@ class LoyaltyEngineTests(unittest.IsolatedAsyncioTestCase):
         )
         self.assertNotIn("opponent", self.engine.pending_duels)
 
+    async def test_dashboard_raffle_accepts_entries_and_awards_winner(self):
+        self.settings.raffle_enabled = True
+        self.settings.raffle_reward_points = 25
+        self.settings.cmd_raffle_enter = "raffle"
+        self.engine._random = lambda: 0.99
+
+        started = await self.engine.start_raffle(
+            title="Movie Night",
+            entry_command="",
+            duration_seconds=60,
+            countdown_interval_seconds=0,
+            reward_points=25,
+            channel=self.channel,
+        )
+        self.assertTrue(started)
+        self.assertIn("Movie Night", self.channel.sent[-1])
+        self.assertIn("!raffle", self.channel.sent[-1])
+
+        await self.engine.handle_message(
+            FakeMessage("!raffle", self.viewer, self.channel)
+        )
+        duplicate_message_count = len(self.channel.sent)
+        await self.engine.handle_message(
+            FakeMessage("!raffle", self.viewer, self.channel)
+        )
+        self.assertEqual(len(self.channel.sent), duplicate_message_count)
+
+        other = FakeAuthor("other", display_name="Other")
+        await self.engine.handle_message(FakeMessage("!raffle", other, self.channel))
+        winner = await self.engine.draw_raffle(self.channel)
+
+        self.assertEqual(winner["username"], "other")
+        self.assertEqual(self.engine.get_balance("other"), 35)
+        self.assertIsNone(self.engine.active_raffle)
+        self.assertIn("Other won Movie Night", self.channel.sent[-1])
+
+    async def test_raffle_without_entries_ends_cleanly(self):
+        self.settings.raffle_enabled = True
+        await self.engine.start_raffle(
+            title="Empty Prize",
+            duration_seconds=30,
+            countdown_interval_seconds=0,
+            channel=self.channel,
+        )
+
+        winner = await self.engine.draw_raffle(self.channel)
+
+        self.assertIsNone(winner)
+        self.assertIsNone(self.engine.active_raffle)
+        self.assertIn("No one entered", self.channel.sent[-1])
+
     async def test_duelist_cannot_join_multiple_pending_duels(self):
         self.settings.duel_cooldown_seconds = 0
         self.engine.adjust_balance("viewer", 40, "test setup")

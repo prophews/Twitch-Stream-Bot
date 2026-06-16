@@ -104,9 +104,11 @@ class LoyaltyEngine:
         self.command_cooldowns: dict[tuple[str, str], float] = {}
         self.game_cooldowns: dict[tuple[str, str], float] = {}
         self.pending_duels: dict[str, dict[str, Any]] = {}
+        self.active_raffle: Optional[dict[str, Any]] = None
         self._random = random.random
         self._active_bonus_task: Optional[asyncio.Task] = None
         self._timer_task: Optional[asyncio.Task] = None
+        self._raffle_countdown_task: Optional[asyncio.Task] = None
         self._streamerbot_tasks: set[asyncio.Task] = set()
         self._accepting_actions = True
         self.latest_channel = None
@@ -172,6 +174,7 @@ class LoyaltyEngine:
             for task in (
                 self._active_bonus_task,
                 self._timer_task,
+                self._raffle_countdown_task,
                 *self._streamerbot_tasks,
             )
             if task is not None and not task.done()
@@ -183,7 +186,9 @@ class LoyaltyEngine:
 
         self._active_bonus_task = None
         self._timer_task = None
+        self._raffle_countdown_task = None
         self._streamerbot_tasks.clear()
+        self.active_raffle = None
 
     def _ensure_user(self, username: str, display_name: str):
         username = _clean_user(username)
@@ -394,6 +399,202 @@ class LoyaltyEngine:
             "winner_balance": winner_balance,
             "loser_balance": loser_balance,
         }
+
+    async def start_raffle(
+        self,
+        title: str = "",
+        entry_command: str = "",
+        duration_seconds: int = 0,
+        countdown_interval_seconds: int = 0,
+        reward_points: int = 0,
+        channel=None,
+    ) -> bool:
+        if not self.settings.raffle_enabled or self.active_raffle is not None:
+            return False
+
+        title = (title or self.settings.raffle_default_title or "Raffle").strip()[:80]
+        entry_command = _clean_user(
+            entry_command or self.settings.cmd_raffle_enter or "raffle"
+        )
+        if not entry_command or " " in entry_command:
+            entry_command = "raffle"
+        duration = max(
+            10,
+            min(
+                3600,
+                int(duration_seconds or self.settings.raffle_duration_seconds),
+            ),
+        )
+        countdown_interval = max(
+            0,
+            min(
+                duration,
+                int(
+                    countdown_interval_seconds
+                    if countdown_interval_seconds is not None
+                    else self.settings.raffle_countdown_interval_seconds
+                ),
+            ),
+        )
+        reward = max(
+            0,
+            int(
+                reward_points
+                if reward_points is not None
+                else self.settings.raffle_reward_points
+            ),
+        )
+        self.active_raffle = {
+            "title": title,
+            "entry_command": entry_command,
+            "started_at": time.time(),
+            "ends_at": time.time() + duration,
+            "duration_seconds": duration,
+            "countdown_interval_seconds": countdown_interval,
+            "reward_points": reward,
+            "entries": {},
+        }
+        channel = channel or self.latest_channel
+        if channel is not None:
+            await self._send_builtin(
+                channel,
+                "raffle_started",
+                title=title,
+                entry_command=entry_command,
+                duration=duration,
+                reward=reward,
+                reward_currency=self._currency_for(reward),
+            )
+            if countdown_interval:
+                self._start_raffle_countdown(channel)
+        return True
+
+    def _start_raffle_countdown(self, channel) -> None:
+        if self._raffle_countdown_task is not None and not self._raffle_countdown_task.done():
+            self._raffle_countdown_task.cancel()
+        self._raffle_countdown_task = asyncio.create_task(
+            self._raffle_countdown_loop(channel)
+        )
+
+    async def _raffle_countdown_loop(self, channel) -> None:
+        try:
+            while self._accepting_actions and self.active_raffle is not None:
+                interval = int(self.active_raffle.get("countdown_interval_seconds", 0))
+                if interval <= 0:
+                    return
+                await asyncio.sleep(interval)
+                raffle = self.active_raffle
+                if raffle is None:
+                    return
+                remaining = max(0, round(float(raffle["ends_at"]) - time.time()))
+                if remaining <= 0:
+                    await self.draw_raffle(channel)
+                    return
+                await self._send_builtin(
+                    channel,
+                    "raffle_countdown",
+                    title=raffle["title"],
+                    entry_command=raffle["entry_command"],
+                    remaining=remaining,
+                    reward=raffle["reward_points"],
+                    reward_currency=self._currency_for(raffle["reward_points"]),
+                )
+        except asyncio.CancelledError:
+            raise
+
+    async def cancel_raffle(self, channel=None) -> bool:
+        raffle = self.active_raffle
+        if raffle is None:
+            return False
+        self._clear_raffle_task()
+        self.active_raffle = None
+        channel = channel or self.latest_channel
+        if channel is not None:
+            await self._send_builtin(channel, "raffle_cancelled", title=raffle["title"])
+        return True
+
+    async def draw_raffle(self, channel=None) -> Optional[dict[str, Any]]:
+        raffle = self.active_raffle
+        if raffle is None:
+            return None
+        self._clear_raffle_task()
+        self.active_raffle = None
+        channel = channel or self.latest_channel
+        entries = list(raffle.get("entries", {}).values())
+        if not entries:
+            if channel is not None:
+                await self._send_builtin(channel, "raffle_no_entries", title=raffle["title"])
+            return None
+
+        index = min(len(entries) - 1, int(self._random() * len(entries)))
+        winner = entries[index]
+        reward = max(0, int(raffle.get("reward_points", 0)))
+        balance = self.get_balance(winner["username"])
+        if self.settings.loyalty_enabled and reward:
+            balance = self.adjust_balance(
+                winner["username"],
+                reward,
+                f"raffle winner: {raffle['title']}",
+                winner.get("display_name", winner["username"]),
+            )
+        if channel is not None:
+            response_name = "raffle_winner" if reward else "raffle_winner_no_reward"
+            await self._send_builtin(
+                channel,
+                response_name,
+                winner=winner.get("display_name") or winner["username"],
+                user=winner["username"],
+                title=raffle["title"],
+                reward=reward,
+                reward_currency=self._currency_for(reward),
+                balance=balance,
+                balance_currency=self._currency_for(balance),
+            )
+        return {**winner, "reward": reward, "balance": balance}
+
+    def _clear_raffle_task(self) -> None:
+        if self._raffle_countdown_task is not None and not self._raffle_countdown_task.done():
+            self._raffle_countdown_task.cancel()
+        self._raffle_countdown_task = None
+
+    async def _handle_raffle_entry(
+        self,
+        command_name: str,
+        username: str,
+        display_name: str,
+        channel,
+    ) -> bool:
+        raffle = self.active_raffle
+        if (
+            raffle is None
+            or not self.settings.raffle_enabled
+            or command_name != str(raffle.get("entry_command", "")).lower()
+        ):
+            return False
+        if time.time() >= float(raffle.get("ends_at", 0)):
+            await self.draw_raffle(channel)
+            return True
+        clean_username = _clean_user(username)
+        if not clean_username:
+            return True
+        entries = raffle.setdefault("entries", {})
+        if clean_username in entries:
+            return True
+        entries[clean_username] = {
+            "username": clean_username,
+            "display_name": display_name or clean_username,
+            "entered_at": _utc_now(),
+        }
+        await self._send_builtin(
+            channel,
+            "raffle_entry",
+            user=clean_username,
+            display_name=display_name or clean_username,
+            title=raffle["title"],
+            entry_count=len(entries),
+            entry_command=raffle["entry_command"],
+        )
+        return True
 
     @staticmethod
     def _parse_wager(
@@ -807,6 +1008,9 @@ class LoyaltyEngine:
         arguments = parts[1:]
         if channel is None:
             return False
+
+        if await self._handle_raffle_entry(command_name, username, display_name, channel):
+            return True
 
         if self.settings.loyalty_enabled and command_name == self.settings.cmd_balance.lower():
             target = _clean_user(arguments[0]) if arguments else _clean_user(username)

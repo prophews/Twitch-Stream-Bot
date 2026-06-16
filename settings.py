@@ -36,6 +36,19 @@ DEFAULT_BUILTIN_RESPONSES = {
     ),
     "duel_decline": "@{user} declined @{challenger}'s duel.",
     "points_adjusted": "{target} now has {balance} {balance_currency}.",
+    "raffle_started": (
+        "Raffle started: {title}! Type !{entry_command} to enter. "
+        "Ends in {duration} seconds."
+    ),
+    "raffle_countdown": (
+        "Raffle still open: {title}. Type !{entry_command} to enter. "
+        "{remaining} seconds left."
+    ),
+    "raffle_entry": "@{user} entered the raffle for {title}.",
+    "raffle_winner": "{winner} won {title}! Awarded {reward} {reward_currency}.",
+    "raffle_winner_no_reward": "{winner} won {title}!",
+    "raffle_no_entries": "No one entered the raffle for {title}.",
+    "raffle_cancelled": "Raffle cancelled: {title}.",
 }
 
 PROFILE_EXCLUDED_ALIASES = {
@@ -155,6 +168,14 @@ class BotSettings(BaseModel):
     duel_maximum: int = Field(10000, alias="DUEL_MAXIMUM")
     duel_timeout_seconds: int = Field(60, alias="DUEL_TIMEOUT_SECONDS")
     duel_cooldown_seconds: int = Field(30, alias="DUEL_COOLDOWN_SECONDS")
+    raffle_enabled: bool = Field(True, alias="RAFFLE_ENABLED")
+    cmd_raffle_enter: str = Field("raffle", alias="CMD_RAFFLE_ENTER")
+    raffle_default_title: str = Field("Raffle", alias="RAFFLE_DEFAULT_TITLE")
+    raffle_duration_seconds: int = Field(120, alias="RAFFLE_DURATION_SECONDS")
+    raffle_countdown_interval_seconds: int = Field(
+        20, alias="RAFFLE_COUNTDOWN_INTERVAL_SECONDS"
+    )
+    raffle_reward_points: int = Field(0, alias="RAFFLE_REWARD_POINTS")
     builtin_responses: dict[str, str] = Field(
         default_factory=lambda: dict(DEFAULT_BUILTIN_RESPONSES),
         alias="BUILTIN_RESPONSES",
@@ -299,6 +320,12 @@ def save_settings(settings: BotSettings) -> None:
         "DUEL_MAXIMUM": settings.duel_maximum,
         "DUEL_TIMEOUT_SECONDS": settings.duel_timeout_seconds,
         "DUEL_COOLDOWN_SECONDS": settings.duel_cooldown_seconds,
+        "RAFFLE_ENABLED": settings.raffle_enabled,
+        "CMD_RAFFLE_ENTER": settings.cmd_raffle_enter,
+        "RAFFLE_DEFAULT_TITLE": settings.raffle_default_title,
+        "RAFFLE_DURATION_SECONDS": settings.raffle_duration_seconds,
+        "RAFFLE_COUNTDOWN_INTERVAL_SECONDS": settings.raffle_countdown_interval_seconds,
+        "RAFFLE_REWARD_POINTS": settings.raffle_reward_points,
         "BUILTIN_RESPONSES": settings.builtin_responses,
         "CUSTOM_COMMANDS": settings.custom_commands,
         "TIMED_MESSAGES": settings.timed_messages,
