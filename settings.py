@@ -9,6 +9,8 @@ from pydantic import BaseModel, ValidationError, Field
 
 PROJECT_ROOT = Path(__file__).resolve().parent
 APP_VERSION = "2.3.4"
+RUNTIME_MODE_ENV = "TWITCH_STREAM_BOT_RUNTIME_MODE"
+RUNTIME_ROOT_ENV = "TWITCH_STREAM_BOT_RUNTIME_ROOT"
 
 DEFAULT_BUILTIN_RESPONSES = {
     "balance": "@{user}, {target} has {balance} {balance_currency}.",
@@ -64,7 +66,14 @@ _CONFIG_WRITE_LOCK = threading.Lock()
 
 def get_runtime_root() -> Path:
     """Return the writable root for user-specific runtime files."""
-    if getattr(sys, "frozen", False):
+    override_root = os.environ.get(RUNTIME_ROOT_ENV, "").strip()
+    if override_root:
+        return Path(override_root).expanduser()
+
+    runtime_mode = os.environ.get(RUNTIME_MODE_ENV, "").strip().lower()
+    use_installed_runtime = runtime_mode in {"installed", "public", "release"}
+
+    if getattr(sys, "frozen", False) or use_installed_runtime:
         local_appdata = Path(os.environ.get("LOCALAPPDATA", Path.home()))
         return local_appdata / "Twitch Song Request Bot"
     return PROJECT_ROOT

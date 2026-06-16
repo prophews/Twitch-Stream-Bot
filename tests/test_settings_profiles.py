@@ -7,12 +7,52 @@ from unittest.mock import patch
 from settings import (
     BotSettings,
     apply_profile_settings,
+    get_runtime_root,
     profile_settings_payload,
     save_settings,
 )
 
 
 class ProfileSettingsTests(unittest.TestCase):
+    def test_dev_runtime_defaults_to_project_root(self):
+        with patch.dict(
+            "os.environ",
+            {
+                "LOCALAPPDATA": str(Path("C:/Temp/LocalAppData")),
+                "TWITCH_STREAM_BOT_RUNTIME_MODE": "",
+                "TWITCH_STREAM_BOT_RUNTIME_ROOT": "",
+            },
+            clear=False,
+        ), patch("settings.sys.frozen", False, create=True):
+            self.assertEqual(get_runtime_root().name, "song request bot")
+
+    def test_installed_runtime_mode_matches_public_app_data_root(self):
+        local_appdata = Path("C:/Temp/LocalAppData")
+        with patch.dict(
+            "os.environ",
+            {
+                "LOCALAPPDATA": str(local_appdata),
+                "TWITCH_STREAM_BOT_RUNTIME_MODE": "installed",
+            },
+            clear=False,
+        ), patch("settings.sys.frozen", False, create=True):
+            self.assertEqual(
+                get_runtime_root(),
+                local_appdata / "Twitch Song Request Bot",
+            )
+
+    def test_explicit_runtime_root_override_wins(self):
+        custom_root = Path("C:/Temp/CustomRuntime")
+        with patch.dict(
+            "os.environ",
+            {
+                "TWITCH_STREAM_BOT_RUNTIME_MODE": "installed",
+                "TWITCH_STREAM_BOT_RUNTIME_ROOT": str(custom_root),
+            },
+            clear=False,
+        ), patch("settings.sys.frozen", False, create=True):
+            self.assertEqual(get_runtime_root(), custom_root)
+
     def test_profile_includes_modifiable_behavior_but_excludes_secrets_and_paths(self):
         settings = BotSettings(
             OAUTH_TOKEN="secret-token",

@@ -63,6 +63,10 @@ python -m unittest discover -s tests -v
 python run_gui.py
 ```
 
+Use `run_gui_public_runtime.bat` when testing source changes against the same
+settings, logs, queues, and loyalty data used by the installed public app:
+`%LOCALAPPDATA%\Twitch Song Request Bot`.
+
 Builds are produced by `build_release.ps1`. Pushing a version tag such as
 `v2.3.0` runs the GitHub Actions release workflow and attaches the installer
 and portable ZIP to a GitHub Release.
