@@ -1,5 +1,5 @@
 #ifndef MyAppVersion
-  #define MyAppVersion "2.3.4"
+  #define MyAppVersion "2.3.5"
 #endif
 
 #define MyAppName "Twitch Stream Bot"

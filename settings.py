@@ -8,7 +8,7 @@ from typing import Any
 from pydantic import BaseModel, ValidationError, Field
 
 PROJECT_ROOT = Path(__file__).resolve().parent
-APP_VERSION = "2.3.4"
+APP_VERSION = "2.3.5"
 RUNTIME_MODE_ENV = "TWITCH_STREAM_BOT_RUNTIME_MODE"
 RUNTIME_ROOT_ENV = "TWITCH_STREAM_BOT_RUNTIME_ROOT"
 
