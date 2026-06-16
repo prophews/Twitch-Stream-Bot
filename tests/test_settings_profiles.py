@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from settings import (
     BotSettings,
+    PROJECT_ROOT,
     apply_profile_settings,
     get_runtime_root,
     profile_settings_payload,
@@ -24,7 +25,7 @@ class ProfileSettingsTests(unittest.TestCase):
             },
             clear=False,
         ), patch("settings.sys.frozen", False, create=True):
-            self.assertEqual(get_runtime_root().name, "song request bot")
+            self.assertEqual(get_runtime_root(), PROJECT_ROOT)
 
     def test_installed_runtime_mode_matches_public_app_data_root(self):
         local_appdata = Path("C:/Temp/LocalAppData")
