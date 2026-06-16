@@ -95,8 +95,8 @@ class BotApp:
     def __init__(self, root):
         self.root = root
         self.root.title(f"Twitch Stream Bot {APP_VERSION}")
-        self.root.geometry("1100x900")
-        self.root.wm_minsize(900, 700)
+        self.root.geometry("1250x900")
+        self.root.wm_minsize(1100, 700)
         
         self.bot_instance = None
         self.bot_thread = None
@@ -711,8 +711,9 @@ class BotApp:
         table_frame.pack(fill=fill, expand=expand)
         scrollbar = tb.Scrollbar(table_frame, orient=VERTICAL, command=tree.yview)
         tree.configure(yscrollcommand=scrollbar.set)
-        tree.pack(side=LEFT, fill=fill, expand=expand)
-        scrollbar.pack(side=RIGHT, fill=Y)
+        table_frame.columnconfigure(0, weight=1)
+        tree.grid(row=0, column=0, sticky="nsew")
+        scrollbar.grid(row=0, column=1, sticky="ns")
 
         def _on_mousewheel(event):
             tree.yview_scroll(int(-1 * (event.delta / 120)), "units")
