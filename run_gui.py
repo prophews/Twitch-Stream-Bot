@@ -1,7 +1,7 @@
 import ttkbootstrap as tb
 from ttkbootstrap.constants import *
+from ttkbootstrap.widgets import ToolTip
 from ttkbootstrap.widgets.scrolled import ScrolledText
-from ttkbootstrap.tooltip import ToolTip
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import threading
@@ -711,9 +711,8 @@ class BotApp:
         table_frame.pack(fill=fill, expand=expand)
         scrollbar = tb.Scrollbar(table_frame, orient=VERTICAL, command=tree.yview)
         tree.configure(yscrollcommand=scrollbar.set)
-        table_frame.columnconfigure(0, weight=1)
-        tree.grid(row=0, column=0, sticky="nsew")
-        scrollbar.grid(row=0, column=1, sticky="ns")
+        tree.pack(side=LEFT, fill=BOTH, expand=True)
+        scrollbar.pack(side=RIGHT, fill=Y)
 
         def _on_mousewheel(event):
             tree.yview_scroll(int(-1 * (event.delta / 120)), "units")
